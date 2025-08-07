@@ -38,6 +38,9 @@
                         <a href="#" class="nav-link border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium" data-tab="streams">
                             ストリーム
                         </a>
+                        <a href="#" class="nav-link border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium" data-tab="profile">
+                            プロフィール
+                        </a>
                     </div>
                 </div>
                 <div class="flex items-center space-x-4">
@@ -315,6 +318,40 @@
                         <!-- 選択されたストリームのお知らせ -->
                         <div class="lg:col-span-2">
                             <div class="bg-white rounded-lg shadow p-6">
+                                <!-- ストリーム固有の権限昇格UI -->
+                                <div id="stream-elevation-section" class="hidden mb-6 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                                    <div class="flex items-start">
+                                        <div class="flex-shrink-0">
+                                            <svg class="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+                                                <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+                                            </svg>
+                                        </div>
+                                        <div class="ml-3 flex-1">
+                                            <h3 class="text-sm font-medium text-yellow-800">
+                                                このストリームで投稿権限を取得
+                                            </h3>
+                                            <div class="mt-2 text-sm text-yellow-700">
+                                                <p>ストリーム管理者コードを入力して、<span id="selected-stream-name">このストリーム</span>での投稿権限を取得できます。</p>
+                                            </div>
+                                            <div class="mt-3 flex gap-3">
+                                                <input 
+                                                    type="password" 
+                                                    id="stream-specific-code" 
+                                                    placeholder="ストリーム管理者コード"
+                                                    class="flex-1 px-3 py-2 text-sm border border-yellow-300 rounded-md focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500"
+                                                >
+                                                <button 
+                                                    onclick="elevateForCurrentStream()" 
+                                                    class="px-4 py-2 text-sm bg-yellow-600 text-white rounded-md hover:bg-yellow-700 focus:ring-2 focus:ring-yellow-500 focus:ring-offset-2"
+                                                >
+                                                    権限取得
+                                                </button>
+                                            </div>
+                                            <div id="stream-elevation-result" class="hidden mt-3"></div>
+                                        </div>
+                                    </div>
+                                </div>
+
                                 <div id="stream-announcements">
                                     <div class="text-center py-12">
                                         <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -324,6 +361,172 @@
                                         <p class="mt-2 text-gray-500">左側からストリームを選択すると、お知らせが表示されます</p>
                                     </div>
                                 </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- プロフィールページ -->
+                <div id="profile" class="page-content hidden">
+                    <div class="mb-8">
+                        <h1 class="text-3xl font-bold text-gray-900">👤 プロフィール</h1>
+                        <p class="mt-2 text-gray-600">
+                            アカウント情報の確認とストリーム管理者権限の申請ができます
+                        </p>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                        <!-- プロフィール情報 -->
+                        <div class="bg-white rounded-lg shadow p-6">
+                            <div class="flex items-center justify-between mb-4">
+                                <h2 class="text-lg font-semibold text-gray-900">アカウント情報</h2>
+                                <button 
+                                    id="edit-profile-btn" 
+                                    onclick="toggleProfileEdit()" 
+                                    class="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                                >
+                                    編集
+                                </button>
+                            </div>
+                            
+                            <div id="profile-info" class="space-y-4">
+                                <div class="text-center py-8">
+                                    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                                    <p class="mt-2 text-gray-500">読み込み中...</p>
+                                </div>
+                            </div>
+
+                            <!-- 編集フォーム（初期状態では非表示） -->
+                            <div id="profile-edit-form" class="hidden space-y-4 mt-6 pt-6 border-t border-gray-200">
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div>
+                                        <label for="edit-name" class="block text-sm font-medium text-gray-700 mb-2">名前</label>
+                                        <input 
+                                            type="text" 
+                                            id="edit-name" 
+                                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                        >
+                                    </div>
+                                    <div>
+                                        <label for="edit-class-name" class="block text-sm font-medium text-gray-700 mb-2">クラス</label>
+                                        <input 
+                                            type="text" 
+                                            id="edit-class-name" 
+                                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                            placeholder="例: 1年A組"
+                                        >
+                                    </div>
+                                    <div>
+                                        <label for="edit-grade" class="block text-sm font-medium text-gray-700 mb-2">学年</label>
+                                        <select 
+                                            id="edit-grade" 
+                                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                        >
+                                            <option value="">学年を選択</option>
+                                            <option value="1">1年</option>
+                                            <option value="2">2年</option>
+                                            <option value="3">3年</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label for="edit-student-number" class="block text-sm font-medium text-gray-700 mb-2">学籍番号</label>
+                                        <input 
+                                            type="text" 
+                                            id="edit-student-number" 
+                                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                            placeholder="例: 2024001"
+                                        >
+                                    </div>
+                                </div>
+                                
+                                <div class="flex gap-3 pt-4">
+                                    <button 
+                                        onclick="saveProfileChanges()" 
+                                        class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
+                                    >
+                                        保存
+                                    </button>
+                                    <button 
+                                        onclick="cancelProfileEdit()" 
+                                        class="bg-gray-300 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-400 focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors"
+                                    >
+                                        キャンセル
+                                    </button>
+                                </div>
+                                
+                                <!-- 保存結果メッセージ -->
+                                <div id="profile-save-result" class="hidden"></div>
+                            </div>
+                        </div>
+
+                        <!-- ストリーム管理者コード入力 -->
+                        <div class="bg-white rounded-lg shadow p-6">
+                            <h2 class="text-lg font-semibold text-gray-900 mb-4">ストリーム管理者権限</h2>
+                            <p class="text-gray-600 mb-2">
+                                ストリーム管理者コードを入力して、投稿権限を取得できます。
+                            </p>
+                            <div class="bg-blue-50 border-l-4 border-blue-400 p-3 mb-4">
+                                <div class="flex">
+                                    <div class="flex-shrink-0">
+                                        <svg class="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
+                                            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+                                        </svg>
+                                    </div>
+                                    <div class="ml-3">
+                                        <p class="text-sm text-blue-700 mb-2">
+                                            <strong>全ストリーム対象コード：</strong> <code class="bg-blue-100 px-1 rounded">STREAM_ADMIN_123</code>
+                                        </p>
+                                        <p class="text-sm text-blue-700 mb-1">
+                                            <strong>ストリーム固有コード：</strong>
+                                        </p>
+                                        <ul class="text-xs text-blue-600 space-y-1">
+                                            <li>• 1年A組: <code class="bg-blue-100 px-1 rounded">CLASS_1A_ADMIN</code></li>
+                                            <li>• 数学科: <code class="bg-blue-100 px-1 rounded">MATH_ADMIN_456</code></li>
+                                            <li>• 全校: <code class="bg-blue-100 px-1 rounded">SCHOOL_ADMIN_789</code></li>
+                                            <li>• 英語科: <code class="bg-blue-100 px-1 rounded">ENGLISH_ADMIN_321</code></li>
+                                            <li>• 生徒会: <code class="bg-blue-100 px-1 rounded">STUDENT_COUNCIL_654</code></li>
+                                        </ul>
+                                        <p class="text-xs text-blue-600 mt-2">
+                                            ※ ストリーム固有コードは該当ストリームでのみ有効です
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="space-y-4">
+                                <div>
+                                    <label for="stream-admin-code" class="block text-sm font-medium text-gray-700 mb-2">
+                                        ストリーム管理者コード
+                                    </label>
+                                    <input 
+                                        type="password" 
+                                        id="stream-admin-code" 
+                                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                        placeholder="管理者から提供されたコードを入力"
+                                    >
+                                </div>
+                                
+                                <button 
+                                    id="elevate-btn"
+                                    onclick="elevateToStreamAdmin()" 
+                                    class="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
+                                >
+                                    権限を申請
+                                </button>
+                                
+                                <!-- 成功・エラーメッセージ -->
+                                <div id="elevation-result" class="hidden"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ストリームメンバーシップ情報 -->
+                    <div class="mt-8 bg-white rounded-lg shadow p-6">
+                        <h2 class="text-lg font-semibold text-gray-900 mb-4">参加中のストリーム</h2>
+                        <div id="stream-memberships" class="space-y-3">
+                            <div class="text-center py-8">
+                                <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                                <p class="mt-2 text-gray-500">読み込み中...</p>
                             </div>
                         </div>
                     </div>

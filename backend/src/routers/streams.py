@@ -6,11 +6,11 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select, and_, or_
 
-from ..auth import get_current_user, get_current_teacher
+from ..auth import get_current_user, get_current_teacher, require_stream_role
 from ..database import get_async_session
 from ..models import (
     User, Stream, StreamMembership, Announcement, AnnouncementReaction,
-    StreamType, AnnouncementType
+    StreamType, AnnouncementType, StreamRole
 )
 
 router = APIRouter(prefix="/api/streams", tags=["streams"])
@@ -56,9 +56,7 @@ async def get_my_streams(
                 "is_public": stream.is_public,
                 "allow_student_posts": stream.allow_student_posts,
                 "membership": {
-                    "can_post": membership.can_post,
-                    "can_moderate": membership.can_moderate,
-                    "is_admin": membership.is_admin,
+                    "role": membership.role,
                     "joined_at": membership.joined_at
                 },
                 "recent_announcements_count": len(recent_announcements),
@@ -179,12 +177,12 @@ async def create_announcement(
     tags: Optional[List[str]] = None,
     target_grades: Optional[List[int]] = None,
     target_classes: Optional[List[str]] = None,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_stream_role({'stream_admin', 'admin'})),
     session: AsyncSession = Depends(get_async_session)
 ):
     """お知らせを作成"""
     
-    # ユーザーがストリームに投稿権限があるかチェック
+    # Get user's role to check for pinning permission
     membership_statement = select(StreamMembership).where(
         and_(
             StreamMembership.user_id == current_user.id,
@@ -194,21 +192,8 @@ async def create_announcement(
     membership_result = await session.exec(membership_statement)
     membership = membership_result.first()
     
-    if not membership:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="このストリームへのアクセス権限がありません"
-        )
-    
-    # 投稿権限をチェック
-    if not membership.can_post and current_user.role == "student":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="投稿権限がありません"
-        )
-    
-    # ピン留めは管理者・教師のみ
-    if is_pinned and current_user.role == "student":
+    # ピン留めは管理者のみ
+    if is_pinned and membership and membership.role != StreamRole.ADMIN:
         is_pinned = False
     
     # お知らせを作成
@@ -238,6 +223,161 @@ async def create_announcement(
         "is_pinned": announcement.is_pinned,
         "created_at": announcement.created_at,
         "message": "お知らせを作成しました"
+    }
+
+
+@router.put("/{stream_id}/announcements/{announcement_id}")
+async def update_announcement(
+    stream_id: str,
+    announcement_id: str,
+    title: str,
+    content: str,
+    announcement_type: Optional[AnnouncementType] = None,
+    is_urgent: Optional[bool] = None,
+    is_pinned: Optional[bool] = None,
+    tags: Optional[List[str]] = None,
+    target_grades: Optional[List[int]] = None,
+    target_classes: Optional[List[str]] = None,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_async_session)
+):
+    """お知らせを編集 (作成者または管理者のみ)"""
+    
+    # お知らせを取得
+    announcement_statement = select(Announcement).where(
+        and_(
+            Announcement.id == announcement_id,
+            Announcement.stream_id == stream_id
+        )
+    )
+    announcement_result = await session.exec(announcement_statement)
+    announcement = announcement_result.first()
+    
+    if not announcement:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="お知らせが見つかりません"
+        )
+    
+    # ユーザーのロールを取得
+    membership_statement = select(StreamMembership).where(
+        and_(
+            StreamMembership.user_id == current_user.id,
+            StreamMembership.stream_id == stream_id
+        )
+    )
+    membership_result = await session.exec(membership_statement)
+    membership = membership_result.first()
+    
+    # 作成者または管理者のみ編集可能
+    is_creator = announcement.created_by == current_user.id
+    is_admin = membership and membership.role in [StreamRole.STREAM_ADMIN, StreamRole.ADMIN]
+    
+    if not (is_creator or is_admin):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="この投稿を編集する権限がありません"
+        )
+    
+    # ピン留めは管理者のみ
+    if is_pinned is not None and is_pinned and not (membership and membership.role == StreamRole.ADMIN):
+        is_pinned = False
+    
+    # 更新
+    announcement.title = title
+    announcement.content = content
+    if announcement_type is not None:
+        announcement.announcement_type = announcement_type
+    if is_urgent is not None:
+        announcement.is_urgent = is_urgent
+    if is_pinned is not None:
+        announcement.is_pinned = is_pinned
+    if tags is not None:
+        announcement.tags = json.dumps(tags)
+    if target_grades is not None:
+        announcement.target_grades = json.dumps(target_grades)
+    if target_classes is not None:
+        announcement.target_classes = json.dumps(target_classes)
+    announcement.updated_at = datetime.now()
+    
+    session.add(announcement)
+    await session.commit()
+    await session.refresh(announcement)
+    
+    return {
+        "id": announcement.id,
+        "title": announcement.title,
+        "content": announcement.content,
+        "announcement_type": announcement.announcement_type,
+        "is_urgent": announcement.is_urgent,
+        "is_pinned": announcement.is_pinned,
+        "updated_at": announcement.updated_at,
+        "message": "お知らせを更新しました"
+    }
+
+
+@router.delete("/{stream_id}/announcements/{announcement_id}")
+async def delete_announcement(
+    stream_id: str,
+    announcement_id: str,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_async_session)
+):
+    """お知らせを削除 (作成者または管理者のみ)"""
+    
+    # お知らせを取得
+    announcement_statement = select(Announcement).where(
+        and_(
+            Announcement.id == announcement_id,
+            Announcement.stream_id == stream_id
+        )
+    )
+    announcement_result = await session.exec(announcement_statement)
+    announcement = announcement_result.first()
+    
+    if not announcement:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="お知らせが見つかりません"
+        )
+    
+    # ユーザーのロールを取得
+    membership_statement = select(StreamMembership).where(
+        and_(
+            StreamMembership.user_id == current_user.id,
+            StreamMembership.stream_id == stream_id
+        )
+    )
+    membership_result = await session.exec(membership_statement)
+    membership = membership_result.first()
+    
+    # 作成者または管理者のみ削除可能
+    is_creator = announcement.created_by == current_user.id
+    is_admin = membership and membership.role in [StreamRole.STREAM_ADMIN, StreamRole.ADMIN]
+    
+    if not (is_creator or is_admin):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="この投稿を削除する権限がありません"
+        )
+    
+    # 関連するリアクションも削除
+    reaction_statement = select(AnnouncementReaction).where(
+        AnnouncementReaction.announcement_id == announcement_id
+    )
+    reaction_result = await session.exec(reaction_statement)
+    reactions = reaction_result.all()
+    
+    for reaction in reactions:
+        await session.delete(reaction)
+    
+    # お知らせを削除
+    await session.delete(announcement)
+    await session.commit()
+    
+    return {
+        "message": "お知らせを削除しました",
+        "deleted_id": announcement_id
     }
 
 
@@ -380,9 +520,7 @@ async def create_stream(
     membership = StreamMembership(
         user_id=current_user.id,
         stream_id=stream.id,
-        can_post=True,
-        can_moderate=True,
-        is_admin=True
+        role=StreamRole.ADMIN
     )
     
     session.add(membership)
