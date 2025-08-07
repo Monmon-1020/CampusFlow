@@ -1,0 +1,19 @@
+{
+  "name": "campusflow-frontend",
+  "version": "1.0.0",
+  "description": "Simple Node.js frontend for CampusFlow",
+  "main": "simple-server.js",
+  "scripts": {
+    "start": "node simple-server.js",
+    "dev": "node simple-server.js",
+    "serve": "node simple-server.js",
+    "build": "echo 'No build step required for static files'",
+    "preview": "node simple-server.js"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "keywords": ["campusflow", "school-management", "node", "express-free"],
+  "author": "CampusFlow Team",
+  "license": "MIT"
+}

@@ -20,8 +20,8 @@ CampusFlowは、課題締切・行事カレンダー・リマインド機能を�
 
 | レイヤー | 技術 |
 |----------|------|
-| **Frontend** | React 18 + TypeScript + Vite + Tailwind CSS |
-| **State Management** | React Query + React Context |
+| **Frontend** | Node.js + Pure HTML/JavaScript + Tailwind CSS |
+| **State Management** | Vanilla JavaScript (No Framework) |
 | **Backend** | Python 3.12 + FastAPI + SQLModel |
 | **Database** | PostgreSQL 15 |
 | **Authentication** | Google OAuth2 + JWT |
@@ -31,9 +31,9 @@ CampusFlowは、課題締切・行事カレンダー・リマインド機能を�
 
 ## 📋 前提条件
 
-- Docker & Docker Compose
-- Node.js 18+ & npm
-- Python 3.12+ & Poetry
+- Docker & Docker Compose (フル環境用)
+- Node.js 16+ (フロントエンドのみ動かす場合)
+- Python 3.12+ & Poetry (バックエンド開発用)
 - Google Cloud Console アカウント (OAuth設定用)
 
 ## 🚀 セットアップ
@@ -96,9 +96,8 @@ poetry run uvicorn src.main:app --reload --port 8000
 
 フロントエンド:
 ```bash
-cd apps/frontend
-npm install
-npm run dev
+cd frontend
+node simple-server.js
 ```
 
 Celery (バックグラウンドタスク):
@@ -110,9 +109,20 @@ poetry run celery -A src.celery_app beat --loglevel=info
 
 ### 5. アプリケーションにアクセス
 
-- **フロントエンド**: http://localhost:5173
-- **バックエンドAPI**: http://localhost:8000
+- **フロントエンド**: http://localhost:3001
+- **バックエンドAPI**: http://localhost:8000  
 - **API ドキュメント**: http://localhost:8000/docs
+
+### 6. フロントエンドのみ動かす場合
+
+バックエンドが不要な場合、フロントエンドは内蔵のモックデータで動作します:
+
+```bash
+cd frontend
+node simple-server.js
+```
+
+http://localhost:3001 にアクセスして動作確認してください。
 
 ## 🔧 開発コマンド
 
@@ -145,23 +155,13 @@ poetry run uvicorn src.main:app --reload
 ### フロントエンド
 
 ```bash
-cd apps/frontend
+cd frontend
 
-# 依存関係のインストール
-npm install
+# サーバー起動
+node simple-server.js
 
-# 開発サーバー起動
-npm run dev
-
-# ビルド
-npm run build
-
-# 型チェック
-npm run type-check
-
-# Linting
-npm run lint
-npm run lint:fix
+# または npm経由で起動
+npm start
 ```
 
 ### Docker
@@ -254,27 +254,25 @@ docker-compose -f docker-compose.prod.yml up -d
 ```
 CampusFlow/
 ├── apps/
-│   ├── backend/          # FastAPI アプリケーション
-│   │   ├── src/
-│   │   │   ├── models.py      # データベースモデル
-│   │   │   ├── schemas.py     # Pydantic スキーマ
-│   │   │   ├── database.py    # DB設定
-│   │   │   ├── auth.py        # 認証ロジック
-│   │   │   ├── main.py        # FastAPIアプリ
-│   │   │   ├── celery_app.py  # Celery設定
-│   │   │   ├── tasks.py       # バックグラウンドタスク
-│   │   │   └── routers/       # APIルーター
-│   │   ├── alembic/           # データベースマイグレーション
-│   │   └── tests/             # テストファイル
-│   └── frontend/         # React アプリケーション
+│   └── backend/          # FastAPI アプリケーション
 │       ├── src/
-│       │   ├── components/    # Reactコンポーネント
-│       │   ├── pages/         # ページコンポーネント
-│       │   ├── hooks/         # カスタムフック
-│       │   ├── contexts/      # React Context
-│       │   ├── lib/           # ユーティリティ
-│       │   └── types/         # TypeScript型定義
-│       └── public/            # 静的ファイル
+│       │   ├── models.py      # データベースモデル
+│       │   ├── schemas.py     # Pydantic スキーマ
+│       │   ├── database.py    # DB設定
+│       │   ├── auth.py        # 認証ロジック
+│       │   ├── main.py        # FastAPIアプリ
+│       │   ├── celery_app.py  # Celery設定
+│       │   ├── tasks.py       # バックグラウンドタスク
+│       │   └── routers/       # APIルーター
+│       ├── alembic/           # データベースマイグレーション
+│       └── tests/             # テストファイル
+├── frontend/             # Node.js シンプルフロントエンド
+│   ├── simple-server.js      # Node.js HTTPサーバー
+│   ├── package.json          # NPM設定
+│   ├── README.md             # フロントエンド説明
+│   └── public/
+│       ├── index.html        # メインHTMLファイル
+│       └── app.js            # フロントエンドJS
 ├── .github/workflows/    # GitHub Actions
 ├── docker-compose.yml    # Docker Compose設定
 └── README.md

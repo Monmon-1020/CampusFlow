@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CampusFlow - 学校管理システム</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#3B82F6',
+                        secondary: '#10B981'
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-gray-50">
+    <!-- ナビゲーション -->
+    <nav class="bg-white shadow">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center">
+                    <h1 class="text-xl font-bold text-blue-600">🎓 CampusFlow</h1>
+                    <div class="ml-6 flex space-x-8">
+                        <a href="#" onclick="showDashboard()" class="nav-link border-b-2 border-blue-500 text-gray-900 inline-flex items-center px-1 pt-1 text-sm font-medium">
+                            ダッシュボード
+                        </a>
+                        <a href="#" onclick="showAssignments()" class="nav-link border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
+                            課題
+                        </a>
+                        <a href="#" onclick="showEvents()" class="nav-link border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
+                            イベント
+                        </a>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <span class="text-sm text-gray-700" id="user-name">読み込み中...</span>
+                    <span class="text-xs px-2 py-1 bg-green-100 text-green-800 rounded-full" id="user-role">
+                        学生
+                    </span>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- メインコンテンツ -->
+    <main class="py-10">
+        <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
+            <div class="px-4 py-6 sm:px-0">
+                <!-- ダッシュボード -->
+                <div id="dashboard" class="page-content">
+                    <div class="mb-8">
+                        <h1 class="text-3xl font-bold text-gray-900">
+                            おかえりなさい、<span id="welcome-name">さん</span>！
+                        </h1>
+                        <p class="mt-2 text-gray-600">
+                            今日の学習状況をチェックしましょう
+                        </p>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                        <!-- 課題セクション -->
+                        <div class="bg-white overflow-hidden shadow rounded-lg">
+                            <div class="p-6">
+                                <div class="flex items-center justify-between mb-4">
+                                    <h2 class="text-lg font-medium text-gray-900">
+                                        📝 今後の課題
+                                    </h2>
+                                    <a href="#" onclick="showAssignments()" class="text-sm text-blue-600 hover:text-blue-500">
+                                        すべて表示 →
+                                    </a>
+                                </div>
+                                
+                                <div id="dashboard-assignments" class="space-y-4">
+                                    <div class="text-center py-8">
+                                        <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                                        <p class="mt-2 text-gray-500">読み込み中...</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- イベントセクション -->
+                        <div class="bg-white overflow-hidden shadow rounded-lg">
+                            <div class="p-6">
+                                <div class="flex items-center justify-between mb-4">
+                                    <h2 class="text-lg font-medium text-gray-900">
+                                        📅 今後のイベント
+                                    </h2>
+                                    <a href="#" onclick="showEvents()" class="text-sm text-blue-600 hover:text-blue-500">
+                                        すべて表示 →
+                                    </a>
+                                </div>
+                                
+                                <div id="dashboard-events" class="space-y-4">
+                                    <div class="text-center py-8">
+                                        <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                                        <p class="mt-2 text-gray-500">読み込み中...</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 統計情報 -->
+                    <div class="mt-8 grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div class="bg-white overflow-hidden shadow rounded-lg">
+                            <div class="p-5">
+                                <div class="flex items-center">
+                                    <div class="flex-shrink-0">
+                                        <div class="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-lg">
+                                            📝
+                                        </div>
+                                    </div>
+                                    <div class="ml-5 w-0 flex-1">
+                                        <dt class="text-sm font-medium text-gray-500 truncate">
+                                            合計課題数
+                                        </dt>
+                                        <dd class="text-lg font-medium text-gray-900" id="total-assignments">
+                                            0
+                                        </dd>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="bg-white overflow-hidden shadow rounded-lg">
+                            <div class="p-5">
+                                <div class="flex items-center">
+                                    <div class="flex-shrink-0">
+                                        <div class="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center text-white text-lg">
+                                            📅
+                                        </div>
+                                    </div>
+                                    <div class="ml-5 w-0 flex-1">
+                                        <dt class="text-sm font-medium text-gray-500 truncate">
+                                            イベント数
+                                        </dt>
+                                        <dd class="text-lg font-medium text-gray-900" id="total-events">
+                                            0
+                                        </dd>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="bg-white overflow-hidden shadow rounded-lg">
+                            <div class="p-5">
+                                <div class="flex items-center">
+                                    <div class="flex-shrink-0">
+                                        <div class="w-8 h-8 bg-purple-500 rounded-full flex items-center justify-center text-white text-lg">
+                                            👤
+                                        </div>
+                                    </div>
+                                    <div class="ml-5 w-0 flex-1">
+                                        <dt class="text-sm font-medium text-gray-500 truncate">
+                                            あなたの役割
+                                        </dt>
+                                        <dd class="text-lg font-medium text-gray-900" id="user-role-display">
+                                            学生
+                                        </dd>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 課題ページ -->
+                <div id="assignments" class="page-content hidden">
+                    <div class="mb-8">
+                        <h1 class="text-3xl font-bold text-gray-900">📝 課題管理</h1>
+                        <p class="mt-2 text-gray-600">
+                            すべての課題を一覧で管理できます
+                        </p>
+                    </div>
+
+                    <div id="assignments-content">
+                        <div class="text-center py-12">
+                            <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+                            <p class="mt-4 text-gray-500">課題を読み込み中...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- イベントページ -->
+                <div id="events" class="page-content hidden">
+                    <div class="mb-8">
+                        <h1 class="text-3xl font-bold text-gray-900">📅 イベント管理</h1>
+                        <p class="mt-2 text-gray-600">
+                            学校行事やイベントをカレンダー形式で管理できます
+                        </p>
+                    </div>
+
+                    <div id="events-content">
+                        <div class="text-center py-12">
+                            <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+                            <p class="mt-4 text-gray-500">イベントを読み込み中...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script src="app.js"></script>
+</body>
+</html>
