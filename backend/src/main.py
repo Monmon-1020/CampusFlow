@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .database import init_db
-from .routers import assignments, auth, events
+from .routers import assignments, auth, events, streams
 
 # .envファイルを読み込み
 load_dotenv()
@@ -43,6 +43,7 @@ app.add_middleware(
 app.include_router(auth.router)
 app.include_router(assignments.router)
 app.include_router(events.router)
+app.include_router(streams.router)
 
 
 @app.get("/")

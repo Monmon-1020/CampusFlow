@@ -8,6 +8,7 @@ from sqlmodel import select
 from ..auth import auth_manager, get_current_user
 from ..database import get_async_session
 from ..models import User
+from ..sample_data import ensure_user_has_sample_data
 
 router = APIRouter(prefix="/api/auth", tags=["authentication"])
 
@@ -34,6 +35,7 @@ async def google_callback(
         result = await session.exec(statement)
         user = result.first()
 
+        is_new_user = False
         if not user:
             # Create new user
             user = User(
@@ -45,6 +47,7 @@ async def google_callback(
             session.add(user)
             await session.commit()
             await session.refresh(user)
+            is_new_user = True
         else:
             # Update existing user info
             user.name = user_info["name"]
@@ -52,6 +55,13 @@ async def google_callback(
             user.updated_at = datetime.utcnow()
             session.add(user)
             await session.commit()
+
+        # 全ユーザーに対してサンプルデータを保証（新規・既存問わず）
+        try:
+            await ensure_user_has_sample_data(session, user)
+        except Exception as e:
+            # サンプルデータ作成に失敗してもログインは継続
+            print(f"サンプルデータ作成エラー: {e}")
 
         # Create tokens
         access_token = auth_manager.create_access_token(
