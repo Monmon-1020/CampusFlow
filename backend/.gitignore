@@ -1,0 +1,71 @@
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Python
+__pycache__/
+*/__pycache__/
+**/__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+campusflow.db
+
+# Celery stuff
+celerybeat-schedule
+celerybeat.pid
+
+# Poetry
+poetry.lock
+
+# Virtual environments
+.venv
+venv/
+env/
+ENV/
+
+# Test coverage
+.coverage
+.pytest_cache/
+htmlcov/
+
+# Logs
+*.log
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+tmp/

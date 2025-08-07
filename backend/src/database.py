@@ -6,14 +6,17 @@ from sqlmodel import Session, SQLModel, create_engine
 
 DATABASE_URL = os.getenv(
     "DATABASE_URL",
-    "postgresql+asyncpg://campusflow:campusflow_dev@localhost:5432/campusflow",
+    "sqlite+aiosqlite:///./campusflow.db",
 )
 
 # Async engine for production use
 async_engine = create_async_engine(DATABASE_URL, echo=True)
 
 # Sync engine for Alembic migrations
-sync_database_url = DATABASE_URL.replace("postgresql+asyncpg://", "postgresql://")
+if DATABASE_URL.startswith("sqlite"):
+    sync_database_url = DATABASE_URL.replace("sqlite+aiosqlite://", "sqlite:///")
+else:
+    sync_database_url = DATABASE_URL.replace("postgresql+asyncpg://", "postgresql://")
 sync_engine = create_engine(sync_database_url, echo=True)
 
 # Session makers

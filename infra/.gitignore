@@ -1,0 +1,63 @@
+# Terraform
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+terraform.tfvars
+terraform.tfvars.json
+*.tfvars
+*.auto.tfvars
+
+# Kubernetes
+*.kubeconfig
+kubeconfig
+
+# Docker
+.dockerignore
+
+# Cloud provider credentials
+*.pem
+*.key
+*.crt
+gcp-key.json
+aws-credentials
+azure-credentials
+
+# Environment specific configs
+config.local.*
+secrets.yaml
+secrets.yml
+
+# Helm
+charts/*/charts/
+charts/*/requirements.lock
+charts/*/Chart.lock
+
+# Ansible
+*.retry
+vault-password
+
+# Logs
+logs/
+*.log
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Backup files
+*.bak
+*.backup
+
+# Local development overrides
+docker-compose.override.yml
+.env.override

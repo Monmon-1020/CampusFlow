@@ -1,6 +1,7 @@
 import os
 from datetime import datetime, timedelta
 from typing import Optional
+from dotenv import load_dotenv
 
 from jose import JWTError, jwt
 from authlib.integrations.httpx_client import AsyncOAuth2Client
@@ -12,6 +13,11 @@ from sqlmodel import Session, select
 from .database import get_async_session
 from .models import User
 
+# .envファイルを読み込み
+load_dotenv()
+# ルートディレクトリの.envも読み込み
+load_dotenv("/workspaces/CampusFlow/.env")
+
 JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "dev_secret_key_change_in_production")
 JWT_ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
@@ -20,7 +26,7 @@ REFRESH_TOKEN_EXPIRE_DAYS = 7
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
 GOOGLE_REDIRECT_URI = os.getenv(
-    "GOOGLE_REDIRECT_URI", "http://localhost:8000/api/auth/google/callback"
+    "GOOGLE_REDIRECT_URI", "http://localhost:3001/auth/google/callback"
 )
 
 security = HTTPBearer()
@@ -61,14 +67,14 @@ class AuthManager:
             )
 
     def get_google_auth_url(self):
-        authorization_url, state = self.google_client.generate_authorization_url(
+        authorization_url, state = self.google_client.create_authorization_url(
             "https://accounts.google.com/o/oauth2/auth",
             redirect_uri=GOOGLE_REDIRECT_URI,
         )
         return authorization_url
 
     async def exchange_code_for_token(self, code: str):
-        token = await self.google_client.fetch_token(
+        token = await self.google_client.fetch_access_token(
             "https://oauth2.googleapis.com/token",
             code=code,
             redirect_uri=GOOGLE_REDIRECT_URI,

@@ -5,7 +5,7 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
-from ..auth import auth_manager
+from ..auth import auth_manager, get_current_user
 from ..database import get_async_session
 from ..models import User
 
@@ -110,3 +110,17 @@ async def refresh_token(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token"
         )
+
+
+@router.get("/me")
+async def get_me(current_user: User = Depends(get_current_user)):
+    """現在のユーザー情報を取得"""
+    return {
+        "id": current_user.id,
+        "email": current_user.email,
+        "name": current_user.name,
+        "role": current_user.role,
+        "picture_url": current_user.picture_url,
+        "created_at": current_user.created_at,
+        "updated_at": current_user.updated_at,
+    }

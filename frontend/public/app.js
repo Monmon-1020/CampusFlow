@@ -2,6 +2,11 @@
 let currentUser = null;
 let assignments = [];
 let events = [];
+let authToken = null;
+
+// 設定
+const API_BASE_URL = 'http://localhost:8000'; // バックエンドAPI URL
+const USE_MOCK_DATA = !API_BASE_URL || localStorage.getItem('useMockData') === 'true';
 
 // ユーティリティ関数
 function formatDate(dateString) {
@@ -80,23 +85,150 @@ function getRoleText(role) {
     }
 }
 
+// 認証機能
+function checkAuth() {
+    const token = localStorage.getItem('authToken');
+    if (token) {
+        authToken = token;
+        return true;
+    }
+    return false;
+}
+
+function showLoginPage() {
+    document.getElementById('login-page').classList.remove('hidden');
+    document.getElementById('main-content').classList.add('hidden');
+    document.querySelector('nav').classList.add('hidden');
+}
+
+function showMainContent() {
+    document.getElementById('login-page').classList.add('hidden');
+    document.getElementById('main-content').classList.remove('hidden');
+    document.querySelector('nav').classList.remove('hidden');
+}
+
+async function loginWithGoogle() {
+    try {
+        document.getElementById('login-loading').classList.remove('hidden');
+        document.getElementById('login-error').classList.add('hidden');
+        
+        if (USE_MOCK_DATA) {
+            // モックログイン
+            const mockToken = 'mock_jwt_token_' + Date.now();
+            const mockUser = {
+                id: '1',
+                name: '田中太郎',
+                email: 'tanaka@example.com',
+                role: 'student',
+                picture_url: null
+            };
+            
+            localStorage.setItem('authToken', mockToken);
+            localStorage.setItem('currentUser', JSON.stringify(mockUser));
+            authToken = mockToken;
+            currentUser = mockUser;
+            
+            setTimeout(() => {
+                document.getElementById('login-loading').classList.add('hidden');
+                showMainContent();
+                initializeApp();
+            }, 1000);
+            return;
+        }
+        
+        // 実際のGoogle OAuth
+        const response = await fetch(`${API_BASE_URL}/api/auth/google/login`, {
+            method: 'GET',
+            mode: 'cors',
+            credentials: 'include',
+            headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        if (data.url) {
+            window.location.href = data.url;
+        } else {
+            throw new Error('認証URLの取得に失敗しました');
+        }
+        
+    } catch (error) {
+        console.error('ログインエラー:', error);
+        document.getElementById('login-loading').classList.add('hidden');
+        document.getElementById('login-error').classList.remove('hidden');
+        document.getElementById('login-error-message').textContent = error.message;
+    }
+}
+
+function logout() {
+    localStorage.removeItem('authToken');
+    localStorage.removeItem('currentUser');
+    authToken = null;
+    currentUser = null;
+    assignments = [];
+    events = [];
+    
+    showLoginPage();
+}
+
 // API呼び出し
 async function fetchUser() {
     try {
-        const response = await fetch('/api/me');
-        currentUser = await response.json();
-        updateUserInfo();
+        if (USE_MOCK_DATA) {
+            const savedUser = localStorage.getItem('currentUser');
+            if (savedUser) {
+                currentUser = JSON.parse(savedUser);
+                updateUserInfo();
+                return;
+            }
+        }
+        
+        const headers = {
+            'Authorization': `Bearer ${authToken}`,
+            'Content-Type': 'application/json'
+        };
+        
+        const response = await fetch(`${API_BASE_URL}/api/auth/me`, { headers });
+        if (response.ok) {
+            currentUser = await response.json();
+            localStorage.setItem('currentUser', JSON.stringify(currentUser));
+            updateUserInfo();
+        } else {
+            throw new Error('ユーザー情報の取得に失敗しました');
+        }
     } catch (error) {
         console.error('ユーザー情報の取得に失敗しました:', error);
+        logout();
     }
 }
 
 async function fetchAssignments() {
     try {
-        const response = await fetch('/api/assignments');
-        assignments = await response.json();
+        if (USE_MOCK_DATA) {
+            const response = await fetch('/api/assignments');
+            assignments = await response.json();
+        } else {
+            const headers = {
+                'Authorization': `Bearer ${authToken}`,
+                'Content-Type': 'application/json'
+            };
+            const response = await fetch(`${API_BASE_URL}/api/assignments`, { headers });
+            if (response.ok) {
+                assignments = await response.json();
+            } else {
+                throw new Error('課題の取得に失敗しました');
+            }
+        }
+        
         updateDashboardAssignments();
-        if (document.getElementById('assignments').style.display !== 'none') {
+        if (document.getElementById('assignments').classList.contains('hidden') === false) {
             renderAssignments();
         }
     } catch (error) {
@@ -106,10 +238,24 @@ async function fetchAssignments() {
 
 async function fetchEvents() {
     try {
-        const response = await fetch('/api/events');
-        events = await response.json();
+        if (USE_MOCK_DATA) {
+            const response = await fetch('/api/events');
+            events = await response.json();
+        } else {
+            const headers = {
+                'Authorization': `Bearer ${authToken}`,
+                'Content-Type': 'application/json'
+            };
+            const response = await fetch(`${API_BASE_URL}/api/events`, { headers });
+            if (response.ok) {
+                events = await response.json();
+            } else {
+                throw new Error('イベントの取得に失敗しました');
+            }
+        }
+        
         updateDashboardEvents();
-        if (document.getElementById('events').style.display !== 'none') {
+        if (document.getElementById('events').classList.contains('hidden') === false) {
             renderEvents();
         }
     } catch (error) {
@@ -493,21 +639,91 @@ function updateNavigation(active) {
         link.classList.add('border-transparent', 'text-gray-500');
     });
     
-    const activeLink = document.querySelector(`a[onclick="show${active.charAt(0).toUpperCase() + active.slice(1)}()"]`);
+    const activeLink = document.querySelector(`a[data-tab="${active}"]`);
     if (activeLink) {
         activeLink.classList.remove('border-transparent', 'text-gray-500');
         activeLink.classList.add('border-blue-500', 'text-gray-900');
     }
 }
 
-// 初期化
-document.addEventListener('DOMContentLoaded', async () => {
+// アプリ初期化
+async function initializeApp() {
     await fetchUser();
     await fetchAssignments();
     await fetchEvents();
     
     showDashboard();
-    
-    // 統計情報を更新
     updateUserInfo();
+}
+
+// 初期化
+document.addEventListener('DOMContentLoaded', async () => {
+    // ナビゲーションのイベントリスナーを設定
+    const navLinks = document.querySelectorAll('.nav-link');
+    navLinks.forEach((link) => {
+        link.addEventListener('click', (e) => {
+            e.preventDefault();
+            const tab = link.getAttribute('data-tab');
+            if (tab === 'dashboard') showDashboard();
+            else if (tab === 'assignments') showAssignments();
+            else if (tab === 'events') showEvents();
+        });
+    });
+
+    // 認証チェック
+    if (checkAuth()) {
+        showMainContent();
+        await initializeApp();
+    } else {
+        showLoginPage();
+    }
+    
+    // URL パラメータでGoogle OAuth コールバックを処理
+    const urlParams = new URLSearchParams(window.location.search);
+    const code = urlParams.get('code');
+    const state = urlParams.get('state');
+    
+    if (code && !USE_MOCK_DATA) {
+        try {
+            console.log('OAuth callback started with code:', code);
+            document.getElementById('login-loading').classList.remove('hidden');
+            
+            const response = await fetch(`${API_BASE_URL}/api/auth/google/callback?code=${code}`);
+            console.log('Response status:', response.status);
+            const data = await response.json();
+            console.log('Response data:', data);
+            
+            if (data.access_token) {
+                localStorage.setItem('authToken', data.access_token);
+                localStorage.setItem('currentUser', JSON.stringify(data.user));
+                authToken = data.access_token;
+                currentUser = data.user;
+                
+                // URLをクリーンアップ
+                window.history.replaceState({}, document.title, window.location.pathname);
+                
+                console.log('About to call showMainContent');
+                showMainContent();
+                console.log('About to call initializeApp');
+                await initializeApp();
+                
+                document.getElementById('login-loading').classList.add('hidden');
+            } else {
+                throw new Error('認証に失敗しました');
+            }
+        } catch (error) {
+            console.error('OAuth callback error:', error);
+            document.getElementById('login-loading').classList.add('hidden');
+            document.getElementById('login-error').classList.remove('hidden');
+            document.getElementById('login-error-message').textContent = 'ログインに失敗しました';
+            showLoginPage();
+        }
+    }
 });
+
+// グローバル関数を明示的に登録
+window.showDashboard = showDashboard;
+window.showAssignments = showAssignments;
+window.showEvents = showEvents;
+window.loginWithGoogle = loginWithGoogle;
+window.logout = logout;
