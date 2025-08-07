@@ -9,7 +9,7 @@ from pydantic import BaseModel
 
 from ..auth import get_current_user
 from ..database import get_async_session
-from ..models import User, StreamMembership, StreamRole
+from ..models import User, StreamMembership, StreamRole, Stream
 
 router = APIRouter(prefix="/api/profile", tags=["profile"])
 
@@ -23,6 +23,11 @@ class ProfileUpdate(BaseModel):
     class_name: Optional[str] = None
     grade: Optional[int] = None
     student_number: Optional[str] = None
+
+
+class StreamElevateCode(BaseModel):
+    code: str
+    stream_id: str
 
 
 @router.post("/elevate")
@@ -69,6 +74,83 @@ async def elevate_to_stream_admin(
         "status": "ok", 
         "message": f"{result.rowcount} 個のストリームでストリーム管理者権限を取得しました",
         "updated_memberships": result.rowcount
+    }
+
+
+@router.post("/elevate/stream")
+async def elevate_to_stream_admin_for_specific_stream(
+    elevate_request: StreamElevateCode,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_async_session)
+):
+    """特定のストリームでストリーム管理者に昇格"""
+    
+    # ストリームが存在するかチェック
+    stream_statement = select(Stream).where(Stream.id == elevate_request.stream_id)
+    stream_result = await session.exec(stream_statement)
+    stream = stream_result.first()
+    
+    if not stream:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="指定されたストリームが見つかりません"
+        )
+    
+    # ユーザーがそのストリームのメンバーかチェック
+    membership_statement = select(StreamMembership).where(
+        (StreamMembership.user_id == current_user.id) &
+        (StreamMembership.stream_id == elevate_request.stream_id)
+    )
+    membership_result = await session.exec(membership_statement)
+    membership = membership_result.first()
+    
+    if not membership:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="このストリームのメンバーではありません"
+        )
+    
+    # ストリーム固有のコードをチェック
+    # まずストリーム固有のコードを探し、なければデフォルトコードを使用
+    stream_specific_code = os.getenv(f"STREAM_CODE_{stream.id}")
+    fallback_code = os.getenv("STREAM_ADMIN_CODE")
+    
+    # 使用するコードを決定
+    stream_admin_code = stream_specific_code or fallback_code
+    
+    if not stream_admin_code:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Stream admin code not configured"
+        )
+    
+    # コードの検証
+    if not secrets.compare_digest(elevate_request.code, stream_admin_code):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="無効なコードです"
+        )
+    
+    # 既にstream_adminまたはadminの場合は何もしない
+    if membership.role in [StreamRole.STREAM_ADMIN, StreamRole.ADMIN]:
+        return {
+            "status": "ok", 
+            "message": f"すでに {stream.name} で管理者権限を持っています",
+            "stream_name": stream.name,
+            "current_role": membership.role
+        }
+    
+    # ロールをstream_adminに更新
+    membership.role = StreamRole.STREAM_ADMIN
+    session.add(membership)
+    await session.commit()
+    
+    return {
+        "status": "ok", 
+        "message": f"{stream.name} でストリーム管理者権限を取得しました",
+        "stream_name": stream.name,
+        "stream_id": stream.id,
+        "new_role": membership.role
     }
 
 
