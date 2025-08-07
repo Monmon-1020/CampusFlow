@@ -68,12 +68,13 @@ jobs:
       working-directory: backend
       run: poetry install --no-interaction
       
-    - name: Run backend linting
+    - name: Run backend linting and formatting checks
       working-directory: backend
       run: |
-        poetry run black --check .
-        poetry run isort --check-only .
+        poetry run black --check --diff .
+        poetry run isort --check-only --diff .
         poetry run flake8 .
+        poetry run mypy src/
         
     - name: Run backend tests
       working-directory: backend
@@ -115,9 +116,11 @@ jobs:
       working-directory: frontend
       run: npm ci
       
-    - name: Run frontend linting (if available)
+    - name: Run frontend linting and formatting checks
       working-directory: frontend
-      run: npm run lint || echo "No linting configured"
+      run: |
+        npm run lint:check
+        npm run format:check
       
     - name: Build frontend
       working-directory: frontend

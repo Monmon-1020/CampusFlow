@@ -3,25 +3,28 @@
 """
 from datetime import datetime, timedelta
 from typing import List
+
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
-from .models import User, Assignment, Event, AssignmentLog
+from .models import Assignment, AssignmentLog, Event, User
 
 
-async def create_sample_assignments_for_user(session: AsyncSession, user: User) -> List[Assignment]:
+async def create_sample_assignments_for_user(
+    session: AsyncSession, user: User
+) -> List[Assignment]:
     """新規ユーザー向けサンプル課題を作成"""
-    
+
     # 既に課題が存在するかチェック
     statement = select(Assignment).where(Assignment.created_by == user.id)
     result = await session.exec(statement)
     existing = result.all()
-    
+
     if existing:
         return existing  # 既存の課題がある場合はそのまま返す
-    
+
     today = datetime.utcnow()
-    
+
     sample_assignments = [
         Assignment(
             title=f"{user.name}さんへ：CampusFlowへようこそ！",
@@ -52,32 +55,34 @@ async def create_sample_assignments_for_user(session: AsyncSession, user: User) 
             created_by=user.id,
         ),
     ]
-    
+
     for assignment in sample_assignments:
         session.add(assignment)
-    
+
     await session.commit()
-    
+
     # 作成された課題を取得して返す
     for assignment in sample_assignments:
         await session.refresh(assignment)
-    
+
     return sample_assignments
 
 
-async def create_sample_events_for_user(session: AsyncSession, user: User) -> List[Event]:
+async def create_sample_events_for_user(
+    session: AsyncSession, user: User
+) -> List[Event]:
     """新規ユーザー向けサンプルイベントを作成"""
-    
+
     # 既にイベントが存在するかチェック
     statement = select(Event).where(Event.created_by == user.id)
     result = await session.exec(statement)
     existing = result.all()
-    
+
     if existing:
         return existing  # 既存のイベントがある場合はそのまま返す
-    
+
     today = datetime.utcnow()
-    
+
     sample_events = [
         Event(
             title=f"{user.name}さんのCampusFlow開始記念",
@@ -125,49 +130,50 @@ async def create_sample_events_for_user(session: AsyncSession, user: User) -> Li
             created_by=user.id,
         ),
     ]
-    
+
     for event in sample_events:
         session.add(event)
-    
+
     await session.commit()
-    
+
     # 作成されたイベントを取得して返す
     for event in sample_events:
         await session.refresh(event)
-    
+
     return sample_events
 
 
 async def ensure_user_has_sample_data(session: AsyncSession, user: User):
     """ユーザーにサンプルデータがあることを保証する"""
-    
+
     # 課題をチェックして、必要に応じて作成
     assignments = await create_sample_assignments_for_user(session, user)
-    
+
     # イベントをチェックして、必要に応じて作成
     events = await create_sample_events_for_user(session, user)
-    
+
     return {
         "assignments_created": len(assignments),
         "events_created": len(events),
-        "message": f"ユーザー {user.name} のサンプルデータを準備しました"
+        "message": f"ユーザー {user.name} のサンプルデータを準備しました",
     }
 
 
-async def create_assignment_sample_logs(session: AsyncSession, user: User, assignment: Assignment):
+async def create_assignment_sample_logs(
+    session: AsyncSession, user: User, assignment: Assignment
+):
     """サンプル課題に対する進捗ログを作成"""
-    
+
     # 既にログが存在するかチェック
     statement = select(AssignmentLog).where(
-        AssignmentLog.assignment_id == assignment.id,
-        AssignmentLog.user_id == user.id
+        AssignmentLog.assignment_id == assignment.id, AssignmentLog.user_id == user.id
     )
     result = await session.exec(statement)
     existing_log = result.first()
-    
+
     if existing_log:
         return existing_log
-    
+
     # 課題の種類に応じてサンプルログを作成
     if "ようこそ" in assignment.title:
         # ウェルカム課題は「進行中」
@@ -181,16 +187,16 @@ async def create_assignment_sample_logs(session: AsyncSession, user: User, assig
         # その他は「未開始」
         status = "not_started"
         notes = ""
-    
+
     log = AssignmentLog(
         assignment_id=assignment.id,
         user_id=user.id,
         status=status,
         notes=notes,
     )
-    
+
     session.add(log)
     await session.commit()
     await session.refresh(log)
-    
+
     return log

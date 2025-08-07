@@ -1,17 +1,17 @@
 import os
 from datetime import datetime, timedelta
 from typing import Optional
-from dotenv import load_dotenv
 
-from jose import JWTError, jwt
 from authlib.integrations.httpx_client import AsyncOAuth2Client
+from dotenv import load_dotenv
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from jose import JWTError, jwt
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import Session, select
 
 from .database import get_async_session
-from .models import User, StreamMembership, StreamRole
+from .models import StreamMembership, StreamRole, User
 
 # .envファイルを読み込み
 load_dotenv()
@@ -136,18 +136,16 @@ async def get_current_admin(current_user: User = Depends(get_current_user)) -> U
 
 
 async def get_stream_role(
-    user_id: str, 
-    stream_id: str, 
-    session: AsyncSession = Depends(get_async_session)
+    user_id: str, stream_id: str, session: AsyncSession = Depends(get_async_session)
 ) -> Optional[StreamRole]:
     """Get user's role in a specific stream"""
     statement = select(StreamMembership).where(
-        (StreamMembership.user_id == user_id) & 
-        (StreamMembership.stream_id == stream_id)
+        (StreamMembership.user_id == user_id)
+        & (StreamMembership.stream_id == stream_id)
     )
     result = await session.exec(statement)
     membership = result.first()
-    
+
     if membership:
         return membership.role
     return None
@@ -155,27 +153,26 @@ async def get_stream_role(
 
 def require_stream_role(allowed_roles: set[str]):
     """Dependency factory to require specific stream roles"""
+
     async def check_stream_role(
         stream_id: str,
         current_user: User = Depends(get_current_user),
-        session: AsyncSession = Depends(get_async_session)
+        session: AsyncSession = Depends(get_async_session),
     ):
         # Get user's stream role
         user_role = await get_stream_role(current_user.id, stream_id, session)
-        
+
         # Check if user has required role
         if user_role is None:
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="このストリームへのアクセス権限がありません"
+                status_code=status.HTTP_403_FORBIDDEN, detail="このストリームへのアクセス権限がありません"
             )
-        
+
         if user_role not in allowed_roles:
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="この操作を実行する権限がありません"
+                status_code=status.HTTP_403_FORBIDDEN, detail="この操作を実行する権限がありません"
             )
-        
+
         return current_user
-    
+
     return check_stream_role

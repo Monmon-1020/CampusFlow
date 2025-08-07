@@ -1,0 +1,51 @@
+repos:
+  # Backend Python hooks
+  - repo: https://github.com/psf/black
+    rev: 23.11.0
+    hooks:
+      - id: black
+        files: ^backend/
+        language_version: python3.12
+
+  - repo: https://github.com/pycqa/isort
+    rev: 5.12.0
+    hooks:
+      - id: isort
+        files: ^backend/
+        args: ["--profile", "black"]
+
+  - repo: https://github.com/pycqa/flake8
+    rev: 6.1.0
+    hooks:
+      - id: flake8
+        files: ^backend/
+        additional_dependencies: [flake8-docstrings, flake8-import-order]
+
+  # Frontend JavaScript hooks
+  - repo: https://github.com/pre-commit/mirrors-eslint
+    rev: v8.55.0
+    hooks:
+      - id: eslint
+        files: ^frontend/.*\.(js|jsx)$
+        additional_dependencies:
+          - eslint@8.55.0
+          - eslint-config-prettier@9.1.0
+          - eslint-plugin-prettier@5.0.1
+          - prettier@3.1.0
+
+  - repo: https://github.com/pre-commit/mirrors-prettier
+    rev: v3.1.0
+    hooks:
+      - id: prettier
+        files: ^frontend/.*\.(js|html|css|json)$
+        exclude: ^frontend/package-lock\.json$
+
+  # General hooks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
+      - id: check-merge-conflict

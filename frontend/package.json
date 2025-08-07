@@ -8,12 +8,24 @@
     "dev": "node simple-server.js",
     "serve": "node simple-server.js",
     "build": "echo 'No build step required for static files'",
-    "preview": "node simple-server.js"
+    "preview": "node simple-server.js",
+    "lint": "eslint public/**/*.js --fix",
+    "lint:check": "eslint public/**/*.js",
+    "format": "prettier --write public/**/*.{js,html,css}",
+    "format:check": "prettier --check public/**/*.{js,html,css}"
   },
   "engines": {
     "node": ">=16.0.0"
   },
   "keywords": ["campusflow", "school-management", "node", "express-free"],
   "author": "CampusFlow Team",
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "eslint": "^8.55.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-prettier": "^5.0.1",
+    "prettier": "^3.1.0",
+    "lint-staged": "^15.2.0",
+    "husky": "^8.0.3"
+  }
 }
