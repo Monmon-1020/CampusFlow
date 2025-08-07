@@ -41,6 +41,12 @@ class StreamType(str, Enum):
     SCHOOL = "school"
 
 
+class StreamRole(str, Enum):
+    STUDENT = "student"
+    STREAM_ADMIN = "stream_admin"
+    ADMIN = "admin"
+
+
 class User(SQLModel, table=True):
     __tablename__ = "users"
 
@@ -154,10 +160,8 @@ class StreamMembership(SQLModel, table=True):
     user_id: str = Field(foreign_key="users.id")
     stream_id: str = Field(foreign_key="streams.id")
     
-    # 権限
-    can_post: bool = Field(default=False)  # 投稿権限
-    can_moderate: bool = Field(default=False)  # モデレート権限
-    is_admin: bool = Field(default=False)  # 管理権限
+    # ロールベース権限
+    role: StreamRole = Field(default=StreamRole.STUDENT)
     
     joined_at: datetime = Field(default_factory=datetime.utcnow)
 

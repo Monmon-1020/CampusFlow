@@ -6,11 +6,11 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select, and_, or_
 
-from ..auth import get_current_user, get_current_teacher
+from ..auth import get_current_user, get_current_teacher, require_stream_role
 from ..database import get_async_session
 from ..models import (
     User, Stream, StreamMembership, Announcement, AnnouncementReaction,
-    StreamType, AnnouncementType
+    StreamType, AnnouncementType, StreamRole
 )
 
 router = APIRouter(prefix="/api/streams", tags=["streams"])
@@ -56,9 +56,7 @@ async def get_my_streams(
                 "is_public": stream.is_public,
                 "allow_student_posts": stream.allow_student_posts,
                 "membership": {
-                    "can_post": membership.can_post,
-                    "can_moderate": membership.can_moderate,
-                    "is_admin": membership.is_admin,
+                    "role": membership.role,
                     "joined_at": membership.joined_at
                 },
                 "recent_announcements_count": len(recent_announcements),
@@ -179,12 +177,12 @@ async def create_announcement(
     tags: Optional[List[str]] = None,
     target_grades: Optional[List[int]] = None,
     target_classes: Optional[List[str]] = None,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_stream_role({'stream_admin', 'admin'})),
     session: AsyncSession = Depends(get_async_session)
 ):
     """お知らせを作成"""
     
-    # ユーザーがストリームに投稿権限があるかチェック
+    # Get user's role to check for pinning permission
     membership_statement = select(StreamMembership).where(
         and_(
             StreamMembership.user_id == current_user.id,
@@ -194,21 +192,8 @@ async def create_announcement(
     membership_result = await session.exec(membership_statement)
     membership = membership_result.first()
     
-    if not membership:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="このストリームへのアクセス権限がありません"
-        )
-    
-    # 投稿権限をチェック
-    if not membership.can_post and current_user.role == "student":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="投稿権限がありません"
-        )
-    
-    # ピン留めは管理者・教師のみ
-    if is_pinned and current_user.role == "student":
+    # ピン留めは管理者のみ
+    if is_pinned and membership and membership.role != StreamRole.ADMIN:
         is_pinned = False
     
     # お知らせを作成
@@ -380,9 +365,7 @@ async def create_stream(
     membership = StreamMembership(
         user_id=current_user.id,
         stream_id=stream.id,
-        can_post=True,
-        can_moderate=True,
-        is_admin=True
+        role=StreamRole.ADMIN
     )
     
     session.add(membership)

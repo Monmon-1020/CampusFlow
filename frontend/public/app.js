@@ -177,6 +177,8 @@ function getRoleText(role) {
             return '教師';
         case 'admin':
             return '管理者';
+        case 'stream_admin':
+            return 'ストリーム管理者';
         default:
             return role;
     }
@@ -490,6 +492,11 @@ async function fetchStreams() {
         console.log('🔍 条件確認: USE_MOCK_DATA =', USE_MOCK_DATA, ', authToken =', authToken ? 'あり' : 'なし');
         if (USE_MOCK_DATA || !authToken) {
             console.log('📋 モックデータを使用します');
+            
+            // 現在のユーザーロールを確認（権限取得後の場合）
+            const userRole = currentUser && currentUser.role === 'stream_admin' ? 'stream_admin' : 'student';
+            console.log('👤 現在のユーザーロール:', userRole);
+            
             // モックデータ
             streams = [
                 {
@@ -501,7 +508,7 @@ async function fetchStreams() {
                     grade: 1,
                     memberCount: 32,
                     announcementCount: 3,
-                    membership: { can_post: false, can_moderate: false, is_admin: false }
+                    membership: { role: userRole }
                 },
                 {
                     id: 2,
@@ -511,7 +518,7 @@ async function fetchStreams() {
                     subject_name: '数学',
                     memberCount: 128,
                     announcementCount: 5,
-                    membership: { can_post: false, can_moderate: false, is_admin: false }
+                    membership: { role: userRole }
                 },
                 {
                     id: 3,
@@ -520,7 +527,7 @@ async function fetchStreams() {
                     type: 'school',
                     memberCount: 450,
                     announcementCount: 2,
-                    membership: { can_post: false, can_moderate: false, is_admin: false }
+                    membership: { role: userRole }
                 },
                 {
                     id: 4,
@@ -530,7 +537,7 @@ async function fetchStreams() {
                     subject_name: '英語',
                     memberCount: 95,
                     announcementCount: 7,
-                    membership: { can_post: false, can_moderate: false, is_admin: false }
+                    membership: { role: userRole }
                 },
                 {
                     id: 5,
@@ -539,10 +546,10 @@ async function fetchStreams() {
                     type: 'school',
                     memberCount: 450,
                     announcementCount: 1,
-                    membership: { can_post: false, can_moderate: false, is_admin: false }
+                    membership: { role: userRole }
                 }
             ];
-            console.log('✅ モックストリームデータを設定:', streams.length, '件');
+            console.log('✅ モックストリームデータを設定:', streams.length, '件、ロール:', userRole);
         } else {
             const headers = {
                 'Authorization': `Bearer ${authToken}`,
@@ -917,6 +924,502 @@ function renderEvents() {
     container.innerHTML = html;
 }
 
+// プロフィール関連機能
+let currentProfileData = null;
+
+async function fetchProfile() {
+    try {
+        if (USE_MOCK_DATA || !authToken) {
+            // 現在のユーザーロールを取得
+            const userRole = currentUser && currentUser.role === 'stream_admin' ? 'stream_admin' : 'student';
+            
+            // モックデータ
+            const mockProfile = {
+                id: '1',
+                email: 'tanaka@example.com',
+                name: currentUser ? currentUser.name : '田中太郎',
+                picture_url: null,
+                role: userRole,
+                class_name: currentUser ? currentUser.class_name : '1年A組',
+                grade: currentUser ? currentUser.grade : 1,
+                student_number: currentUser ? currentUser.student_number : '2024001',
+                created_at: new Date().toISOString(),
+                stream_memberships: [
+                    {
+                        stream_id: '1',
+                        stream_name: '1年A組',
+                        role: userRole,
+                        joined_at: new Date().toISOString()
+                    },
+                    {
+                        stream_id: '2',
+                        stream_name: '数学科',
+                        role: userRole,
+                        joined_at: new Date().toISOString()
+                    },
+                    {
+                        stream_id: '3',
+                        stream_name: '全校',
+                        role: userRole,
+                        joined_at: new Date().toISOString()
+                    }
+                ]
+            };
+            
+            currentProfileData = mockProfile;
+            renderProfile(mockProfile);
+            return;
+        }
+        
+        const headers = {
+            'Authorization': `Bearer ${authToken}`,
+            'Content-Type': 'application/json'
+        };
+        
+        const response = await fetch(`${API_BASE_URL}/api/profile`, { headers });
+        if (response.ok) {
+            const profile = await response.json();
+            currentProfileData = profile;
+            renderProfile(profile);
+        } else {
+            throw new Error('プロフィール情報の取得に失敗しました');
+        }
+    } catch (error) {
+        console.error('プロフィール取得エラー:', error);
+        const profileInfo = document.getElementById('profile-info');
+        if (profileInfo) {
+            profileInfo.innerHTML = `
+                <div class="text-center py-8 text-red-500">
+                    <p>プロフィール情報の取得に失敗しました</p>
+                </div>
+            `;
+        }
+    }
+}
+
+function renderProfile(profile) {
+    const profileInfo = document.getElementById('profile-info');
+    if (!profileInfo) return;
+    
+    profileInfo.innerHTML = `
+        <div class="space-y-4">
+            <div class="flex items-center space-x-4">
+                ${profile.picture_url ? 
+                    `<img class="h-16 w-16 rounded-full" src="${profile.picture_url}" alt="プロフィール画像">` :
+                    `<div class="h-16 w-16 rounded-full bg-gray-300 flex items-center justify-center text-gray-600 text-xl">👤</div>`
+                }
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-900">${escapeHtml(profile.name)}</h3>
+                    <p class="text-sm text-gray-500">${escapeHtml(profile.email)}</p>
+                </div>
+            </div>
+            
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-500">役割</label>
+                    <p class="mt-1 text-sm text-gray-900">${getRoleText(profile.role)}</p>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-500">クラス</label>
+                    <p class="mt-1 text-sm text-gray-900">${profile.class_name || 'なし'}</p>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-500">学年</label>
+                    <p class="mt-1 text-sm text-gray-900">${profile.grade ? profile.grade + '年' : 'なし'}</p>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-500">学籍番号</label>
+                    <p class="mt-1 text-sm text-gray-900">${profile.student_number || 'なし'}</p>
+                </div>
+            </div>
+            
+            <div>
+                <label class="block text-sm font-medium text-gray-500">アカウント作成日</label>
+                <p class="mt-1 text-sm text-gray-900">${formatDate(profile.created_at)}</p>
+            </div>
+        </div>
+    `;
+    
+    // ストリームメンバーシップ情報を表示
+    const streamMemberships = document.getElementById('stream-memberships');
+    if (streamMemberships && profile.stream_memberships) {
+        if (profile.stream_memberships.length === 0) {
+            streamMemberships.innerHTML = `
+                <div class="text-center py-8 text-gray-500">
+                    <p>参加中のストリームがありません</p>
+                </div>
+            `;
+        } else {
+            const membershipsHTML = profile.stream_memberships.map(membership => `
+                <div class="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+                    <div class="flex items-center space-x-3">
+                        <div class="flex-shrink-0">
+                            <div class="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm">
+                                💬
+                            </div>
+                        </div>
+                        <div>
+                            <h4 class="text-sm font-medium text-gray-900">${escapeHtml(membership.stream_name)}</h4>
+                            <p class="text-xs text-gray-500">参加日: ${formatDate(membership.joined_at)}</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <span class="px-2 py-1 text-xs font-medium rounded-full ${getRoleColor(membership.role)}">
+                            ${getRoleText(membership.role)}
+                        </span>
+                    </div>
+                </div>
+            `).join('');
+            
+            streamMemberships.innerHTML = membershipsHTML;
+        }
+    }
+}
+
+function getRoleColor(role) {
+    switch (role) {
+        case 'admin':
+            return 'bg-red-100 text-red-800';
+        case 'stream_admin':
+            return 'bg-purple-100 text-purple-800';
+        case 'student':
+            return 'bg-green-100 text-green-800';
+        default:
+            return 'bg-gray-100 text-gray-800';
+    }
+}
+
+async function elevateToStreamAdmin() {
+    const codeInput = document.getElementById('stream-admin-code');
+    const elevateBtn = document.getElementById('elevate-btn');
+    const resultDiv = document.getElementById('elevation-result');
+    
+    if (!codeInput || !elevateBtn || !resultDiv) {
+        console.error('必要な要素が見つかりません');
+        return;
+    }
+    
+    const code = codeInput.value.trim();
+    if (!code) {
+        showElevationResult('error', 'コードを入力してください');
+        return;
+    }
+    
+    try {
+        // ボタンを無効化
+        elevateBtn.disabled = true;
+        elevateBtn.textContent = '申請中...';
+        
+        if (USE_MOCK_DATA || !authToken) {
+            // モックレスポンス
+            setTimeout(() => {
+                if (code === 'STREAM_ADMIN_123') {
+                    showElevationResult('success', 'ストリーム管理者権限を取得しました！ストリームページで投稿ボタンを確認してください。');
+                    
+                    // モックデータでロールを更新
+                    if (currentUser) {
+                        console.log('🔄 ユーザーロールを更新:', currentUser.role, '→ stream_admin');
+                        currentUser.role = 'stream_admin';
+                        localStorage.setItem('currentUser', JSON.stringify(currentUser));
+                        updateUserInfo();
+                    }
+                    
+                    // ストリームデータのロールを更新
+                    console.log('🔄 ストリームデータのロールを更新中...', streams.length, '件');
+                    streams.forEach((stream, index) => {
+                        if (stream.membership) {
+                            console.log(`  ストリーム${index + 1}: ${stream.name} - ${stream.membership.role} → stream_admin`);
+                            stream.membership.role = 'stream_admin';
+                        }
+                    });
+                    
+                    // プロフィール情報を再取得
+                    setTimeout(() => {
+                        fetchProfile();
+                        // ストリーム情報も更新
+                        fetchStreams();
+                        // 現在選択中のストリームがあれば再描画
+                        if (selectedStream) {
+                            const updatedStream = streams.find(s => s.id === selectedStream.id);
+                            if (updatedStream) {
+                                selectedStream = updatedStream;
+                                renderStreamAnnouncements();
+                            }
+                        }
+                    }, 1000);
+                } else {
+                    showElevationResult('error', '無効なコードです');
+                }
+                
+                // ボタンを元に戻す
+                elevateBtn.disabled = false;
+                elevateBtn.textContent = '権限を申請';
+                codeInput.value = '';
+            }, 1000);
+            return;
+        }
+        
+        const headers = {
+            'Authorization': `Bearer ${authToken}`,
+            'Content-Type': 'application/json'
+        };
+        
+        const response = await fetch(`${API_BASE_URL}/api/profile/elevate`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ code })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            showElevationResult('success', data.message || 'ストリーム管理者権限を取得しました！');
+            // プロフィール情報を再取得
+            setTimeout(() => {
+                fetchProfile();
+                // ストリーム情報も更新
+                fetchStreams();
+                // 現在選択中のストリームがあれば再描画
+                if (selectedStream) {
+                    fetchStreamAnnouncements(selectedStream.id);
+                }
+            }, 1000);
+        } else {
+            showElevationResult('error', data.detail || 'エラーが発生しました');
+        }
+        
+    } catch (error) {
+        console.error('権限昇格エラー:', error);
+        showElevationResult('error', 'サーバーエラーが発生しました');
+    } finally {
+        elevateBtn.disabled = false;
+        elevateBtn.textContent = '権限を申請';
+        codeInput.value = '';
+    }
+}
+
+function showElevationResult(type, message) {
+    const resultDiv = document.getElementById('elevation-result');
+    if (!resultDiv) return;
+    
+    const isSuccess = type === 'success';
+    const bgColor = isSuccess ? 'bg-green-50' : 'bg-red-50';
+    const borderColor = isSuccess ? 'border-green-200' : 'border-red-200';
+    const textColor = isSuccess ? 'text-green-800' : 'text-red-800';
+    const iconColor = isSuccess ? 'text-green-400' : 'text-red-400';
+    const icon = isSuccess ? '✅' : '❌';
+    
+    resultDiv.className = `mt-4 p-4 ${bgColor} ${borderColor} border rounded-md`;
+    resultDiv.innerHTML = `
+        <div class="flex">
+            <div class="flex-shrink-0">
+                <span class="${iconColor} text-lg">${icon}</span>
+            </div>
+            <div class="ml-3">
+                <p class="text-sm font-medium ${textColor}">${escapeHtml(message)}</p>
+            </div>
+        </div>
+    `;
+    resultDiv.classList.remove('hidden');
+    
+    // 5秒後に自動的に隠す
+    setTimeout(() => {
+        resultDiv.classList.add('hidden');
+    }, 5000);
+}
+
+function showProfile() {
+    console.log('👤 プロフィールページ表示処理開始');
+    document.querySelectorAll('.page-content').forEach(el => el.classList.add('hidden'));
+    const profileEl = document.getElementById('profile');
+    if (profileEl) {
+        profileEl.classList.remove('hidden');
+        console.log('✅ プロフィールページ要素表示完了');
+    } else {
+        console.error('❌ プロフィールページ要素が見つかりません');
+    }
+    
+    updateNavigation('profile');
+    fetchProfile();
+}
+
+function toggleProfileEdit() {
+    const editForm = document.getElementById('profile-edit-form');
+    const editBtn = document.getElementById('edit-profile-btn');
+    
+    if (!editForm || !editBtn) return;
+    
+    const isHidden = editForm.classList.contains('hidden');
+    
+    if (isHidden) {
+        // 編集モードを開始
+        populateEditForm();
+        editForm.classList.remove('hidden');
+        editBtn.textContent = 'キャンセル';
+        editBtn.onclick = cancelProfileEdit;
+    } else {
+        // 編集モードをキャンセル
+        cancelProfileEdit();
+    }
+}
+
+function populateEditForm() {
+    if (!currentProfileData) return;
+    
+    const nameInput = document.getElementById('edit-name');
+    const classNameInput = document.getElementById('edit-class-name');
+    const gradeSelect = document.getElementById('edit-grade');
+    const studentNumberInput = document.getElementById('edit-student-number');
+    
+    if (nameInput) nameInput.value = currentProfileData.name || '';
+    if (classNameInput) classNameInput.value = currentProfileData.class_name || '';
+    if (gradeSelect) gradeSelect.value = currentProfileData.grade || '';
+    if (studentNumberInput) studentNumberInput.value = currentProfileData.student_number || '';
+}
+
+function cancelProfileEdit() {
+    const editForm = document.getElementById('profile-edit-form');
+    const editBtn = document.getElementById('edit-profile-btn');
+    const saveResultDiv = document.getElementById('profile-save-result');
+    
+    if (editForm) editForm.classList.add('hidden');
+    if (editBtn) {
+        editBtn.textContent = '編集';
+        editBtn.onclick = toggleProfileEdit;
+    }
+    if (saveResultDiv) saveResultDiv.classList.add('hidden');
+}
+
+async function saveProfileChanges() {
+    const nameInput = document.getElementById('edit-name');
+    const classNameInput = document.getElementById('edit-class-name');
+    const gradeSelect = document.getElementById('edit-grade');
+    const studentNumberInput = document.getElementById('edit-student-number');
+    const saveResultDiv = document.getElementById('profile-save-result');
+    
+    if (!nameInput || !classNameInput || !gradeSelect || !studentNumberInput) {
+        showProfileSaveResult('error', '入力フィールドが見つかりません');
+        return;
+    }
+    
+    const updatedData = {
+        name: nameInput.value.trim(),
+        class_name: classNameInput.value.trim(),
+        grade: gradeSelect.value ? parseInt(gradeSelect.value) : null,
+        student_number: studentNumberInput.value.trim()
+    };
+    
+    // バリデーション
+    if (!updatedData.name) {
+        showProfileSaveResult('error', '名前は必須です');
+        return;
+    }
+    
+    try {
+        // 保存ボタンを無効化
+        const saveBtn = event.target;
+        saveBtn.disabled = true;
+        saveBtn.textContent = '保存中...';
+        
+        if (USE_MOCK_DATA || !authToken) {
+            // モック保存
+            setTimeout(() => {
+                // currentProfileData を更新
+                currentProfileData = { ...currentProfileData, ...updatedData };
+                
+                // currentUser も更新（他の画面での表示用）
+                if (currentUser) {
+                    currentUser.name = updatedData.name;
+                    currentUser.class_name = updatedData.class_name;
+                    currentUser.grade = updatedData.grade;
+                    currentUser.student_number = updatedData.student_number;
+                    localStorage.setItem('currentUser', JSON.stringify(currentUser));
+                    updateUserInfo(); // ナビゲーションの表示を更新
+                }
+                
+                renderProfile(currentProfileData);
+                showProfileSaveResult('success', 'プロフィールを更新しました');
+                
+                // 編集モードを終了
+                setTimeout(() => {
+                    cancelProfileEdit();
+                }, 1500);
+                
+                saveBtn.disabled = false;
+                saveBtn.textContent = '保存';
+            }, 1000);
+            return;
+        }
+        
+        // 実際のAPI呼び出し
+        const headers = {
+            'Authorization': `Bearer ${authToken}`,
+            'Content-Type': 'application/json'
+        };
+        
+        const response = await fetch(`${API_BASE_URL}/api/profile`, {
+            method: 'PUT',
+            headers,
+            body: JSON.stringify(updatedData)
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            currentProfileData = data;
+            renderProfile(currentProfileData);
+            showProfileSaveResult('success', 'プロフィールを更新しました');
+            
+            // 編集モードを終了
+            setTimeout(() => {
+                cancelProfileEdit();
+            }, 1500);
+        } else {
+            showProfileSaveResult('error', data.detail || 'プロフィールの更新に失敗しました');
+        }
+        
+    } catch (error) {
+        console.error('プロフィール保存エラー:', error);
+        showProfileSaveResult('error', 'サーバーエラーが発生しました');
+    } finally {
+        const saveBtn = document.querySelector('#profile-edit-form button[onclick="saveProfileChanges()"]');
+        if (saveBtn) {
+            saveBtn.disabled = false;
+            saveBtn.textContent = '保存';
+        }
+    }
+}
+
+function showProfileSaveResult(type, message) {
+    const resultDiv = document.getElementById('profile-save-result');
+    if (!resultDiv) return;
+    
+    const isSuccess = type === 'success';
+    const bgColor = isSuccess ? 'bg-green-50' : 'bg-red-50';
+    const borderColor = isSuccess ? 'border-green-200' : 'border-red-200';
+    const textColor = isSuccess ? 'text-green-800' : 'text-red-800';
+    const iconColor = isSuccess ? 'text-green-400' : 'text-red-400';
+    const icon = isSuccess ? '✅' : '❌';
+    
+    resultDiv.className = `mt-4 p-4 ${bgColor} ${borderColor} border rounded-md`;
+    resultDiv.innerHTML = `
+        <div class="flex">
+            <div class="flex-shrink-0">
+                <span class="${iconColor} text-lg">${icon}</span>
+            </div>
+            <div class="ml-3">
+                <p class="text-sm font-medium ${textColor}">${escapeHtml(message)}</p>
+            </div>
+        </div>
+    `;
+    resultDiv.classList.remove('hidden');
+    
+    // 成功時は3秒後、エラー時は5秒後に自動的に隠す
+    setTimeout(() => {
+        resultDiv.classList.add('hidden');
+    }, isSuccess ? 3000 : 5000);
+}
+
 // ナビゲーション
 function showDashboard() {
     console.log('🏠 ダッシュボード表示処理開始');
@@ -1210,14 +1713,53 @@ function renderStreamAnnouncements() {
         return;
     }
 
+    // 投稿権限チェック
+    const canPost = selectedStream && selectedStream.membership && 
+        (selectedStream.membership.role === 'stream_admin' || selectedStream.membership.role === 'admin');
+    
+    console.log('🔍 投稿権限チェック:');
+    console.log('  selectedStream:', selectedStream?.name);
+    console.log('  membership role:', selectedStream?.membership?.role);
+    console.log('  canPost:', canPost);
+
     if (!currentStreamAnnouncements || currentStreamAnnouncements.length === 0) {
         announcementsContainer.innerHTML = `
-            <div class="text-center py-8 text-gray-500">
-                <p>お知らせがありません</p>
+            <div class="space-y-4">
+                ${canPost ? `
+                    <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <h3 class="text-sm font-medium text-blue-800">新しいお知らせを投稿</h3>
+                                <p class="text-xs text-blue-600 mt-1">このストリームにお知らせを投稿できます</p>
+                            </div>
+                            <button onclick="showNewPostModal()" class="bg-blue-600 text-white px-3 py-1 text-sm rounded hover:bg-blue-700">
+                                新規投稿
+                            </button>
+                        </div>
+                    </div>
+                ` : ''}
+                <div class="text-center py-8 text-gray-500">
+                    <p>お知らせがありません</p>
+                    ${!canPost ? '<p class="text-xs mt-2">※ 投稿するには管理者権限が必要です</p>' : ''}
+                </div>
             </div>
         `;
         return;
     }
+
+    const postButton = canPost ? `
+        <div class="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h3 class="text-sm font-medium text-blue-800">新しいお知らせを投稿</h3>
+                    <p class="text-xs text-blue-600 mt-1">このストリームにお知らせを投稿できます</p>
+                </div>
+                <button onclick="showNewPostModal()" class="bg-blue-600 text-white px-3 py-1 text-sm rounded hover:bg-blue-700">
+                    新規投稿
+                </button>
+            </div>
+        </div>
+    ` : '';
 
     const announcementsHTML = currentStreamAnnouncements.map(announcement => `
         <div class="bg-white rounded-lg shadow p-6 mb-4">
@@ -1233,8 +1775,42 @@ function renderStreamAnnouncements() {
         </div>
     `).join('');
 
-    announcementsContainer.innerHTML = announcementsHTML;
+    announcementsContainer.innerHTML = postButton + announcementsHTML;
     console.log('✅ ストリームお知らせ表示完了:', currentStreamAnnouncements.length, '件');
+}
+
+// 新規投稿モーダル（簡易実装）
+function showNewPostModal() {
+    if (!selectedStream) {
+        alert('ストリームを選択してください');
+        return;
+    }
+
+    const title = prompt('お知らせのタイトルを入力してください:');
+    if (!title) return;
+
+    const content = prompt('お知らせの内容を入力してください:');
+    if (!content) return;
+
+    const isUrgent = confirm('重要なお知らせとしてマークしますか？');
+
+    // 新しいお知らせを作成（モック）
+    const newAnnouncement = {
+        id: Date.now(),
+        title: title,
+        content: content,
+        author: currentUser ? currentUser.name : '投稿者',
+        created_at: new Date().toISOString(),
+        priority: isUrgent ? 'high' : 'normal'
+    };
+
+    // リストの先頭に追加
+    currentStreamAnnouncements.unshift(newAnnouncement);
+    
+    // 再描画
+    renderStreamAnnouncements();
+    
+    alert('お知らせを投稿しました！');
 }
 
 // お知らせ検索
@@ -1438,6 +2014,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             else if (tab === 'assignments') showAssignments();
             else if (tab === 'events') showEvents();
             else if (tab === 'streams') showStreams();
+            else if (tab === 'profile') showProfile();
         });
     });
 
@@ -1499,8 +2076,14 @@ window.showDashboard = showDashboard;
 window.showAssignments = showAssignments;
 window.showEvents = showEvents;
 window.showStreams = showStreams;
+window.showProfile = showProfile;
 window.loginWithGoogle = loginWithGoogle;
 window.logout = logout;
 window.closeWelcomeMessage = closeWelcomeMessage;
 window.selectStream = selectStream;
 window.searchAnnouncements = searchAnnouncements;
+window.elevateToStreamAdmin = elevateToStreamAdmin;
+window.showNewPostModal = showNewPostModal;
+window.toggleProfileEdit = toggleProfileEdit;
+window.saveProfileChanges = saveProfileChanges;
+window.cancelProfileEdit = cancelProfileEdit;
