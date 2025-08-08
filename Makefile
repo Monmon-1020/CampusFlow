@@ -1,4 +1,4 @@
-.PHONY: help install lint check format fmt test tests clean setup-pre-commit backend-dev frontend-dev dev-backend dev-frontend be fe
+.PHONY: help install lint lint-strict check format fmt test tests clean setup-pre-commit backend-dev frontend-dev dev-backend dev-frontend be fe run
 
 help: ## Show this help message
 	@echo "Available commands:"
@@ -11,6 +11,15 @@ install: ## Install all dependencies
 	cd frontend && npm install
 
 lint: ## Run linting for both backend and frontend
+	@echo "Running backend linting..."
+	cd backend && poetry run black --check .
+	cd backend && poetry run isort --check-only .
+	cd backend && poetry run flake8 .
+	@echo "Running frontend linting..."
+	cd frontend && npm run lint:check
+	cd frontend && npm run format:check
+
+lint-strict: ## Run strict linting including mypy
 	@echo "Running backend linting..."
 	cd backend && poetry run black --check .
 	cd backend && poetry run isort --check-only .
@@ -60,3 +69,13 @@ dev-backend: backend-dev ## Alias for backend-dev
 dev-frontend: frontend-dev ## Alias for frontend-dev
 be: backend-dev ## Short alias for backend-dev
 fe: frontend-dev ## Short alias for frontend-dev
+
+run: ## Start both backend and frontend development servers
+	@echo "Starting CampusFlow development servers..."
+	@echo "Backend will be available at http://localhost:8000"
+	@echo "Frontend will be available at http://localhost:3000"
+	@echo "Press Ctrl+C to stop both servers"
+	@trap 'kill %1 %2' INT; \
+	cd backend && poetry run uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload & \
+	cd frontend && npm run dev & \
+	wait
