@@ -9,7 +9,7 @@ let authToken = null;
 
 // 設定
 const API_BASE_URL = 'http://localhost:8000'; // バックエンドAPI URL
-const USE_MOCK_DATA = true; // フロントエンドのみの場合は true に設定
+const USE_MOCK_DATA = false; // フロントエンドのみの場合は true に設定
 
 // デバッグ情報
 console.log('⚙️ 設定情報:');
@@ -202,6 +202,7 @@ function showLoginPage() {
     const mainNav = document.getElementById('main-nav');
     
     if (loginPage) {
+        loginPage.style.display = 'flex';
         loginPage.classList.remove('hidden');
         console.log('✅ ログインページを表示');
     } else {
@@ -209,6 +210,7 @@ function showLoginPage() {
     }
     
     if (mainContent) {
+        mainContent.style.display = 'none';
         mainContent.classList.add('hidden');
         console.log('✅ メインコンテンツを非表示');
     } else {
@@ -216,6 +218,7 @@ function showLoginPage() {
     }
     
     if (mainNav) {
+        mainNav.style.display = 'none';
         mainNav.classList.add('hidden');
         console.log('✅ ナビゲーションを非表示');
     } else {
@@ -231,6 +234,7 @@ function showMainContent() {
     const mainNav = document.getElementById('main-nav');
     
     if (loginPage) {
+        loginPage.style.display = 'none';
         loginPage.classList.add('hidden');
         console.log('✅ ログインページを非表示');
     } else {
@@ -238,6 +242,7 @@ function showMainContent() {
     }
     
     if (mainContent) {
+        mainContent.style.display = 'block';
         mainContent.classList.remove('hidden');
         console.log('✅ メインコンテンツを表示');
     } else {
@@ -245,6 +250,7 @@ function showMainContent() {
     }
     
     if (mainNav) {
+        mainNav.style.display = 'block';
         mainNav.classList.remove('hidden');
         console.log('✅ ナビゲーションを表示');
     } else {
@@ -276,36 +282,43 @@ async function loginWithGoogle() {
             authToken = mockToken;
             currentUser = mockUser;
             
+            // モックデータの場合の共通処理
             setTimeout(() => {
                 console.log('✅ モックログイン完了');
                 document.getElementById('login-loading').classList.add('hidden');
                 showMainContent();
                 initializeApp();
             }, 1000);
-            return;
-        }
-        
-        // 実際のGoogle OAuth
-        const response = await fetch(`${API_BASE_URL}/api/auth/google/login`, {
-            method: 'GET',
-            mode: 'cors',
-            credentials: 'include',
-            headers: {
-                'Accept': 'application/json',
-                'Content-Type': 'application/json',
-            }
-        });
-        
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        
-        const data = await response.json();
-        
-        if (data.url) {
-            window.location.href = data.url;
         } else {
-            throw new Error('認証URLの取得に失敗しました');
+            console.log('🔗 開発用APIログイン（Google OAuth設定待ち）');
+            // 開発用ログイン API呼び出し
+            const response = await fetch(`${API_BASE_URL}/api/auth/dev/login`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            if (!response.ok) {
+                throw new Error(`ログイン失敗: ${response.status} ${response.statusText}`);
+            }
+            
+            const result = await response.json();
+            console.log('✅ ログイン成功:', result.user);
+            
+            // 認証情報を保存
+            localStorage.setItem('authToken', result.access_token);
+            localStorage.setItem('currentUser', JSON.stringify(result.user));
+            authToken = result.access_token;
+            currentUser = result.user;
+            
+            // 実APIログインの場合の共通処理
+            setTimeout(() => {
+                console.log('✅ APIログイン完了');
+                document.getElementById('login-loading').classList.add('hidden');
+                showMainContent();
+                initializeApp();
+            }, 1000);
         }
         
     } catch (error) {
@@ -354,6 +367,20 @@ async function fetchUser() {
         }
     } catch (error) {
         console.error('ユーザー情報の取得に失敗しました:', error);
+        
+        // 開発用ログインの場合はローカルストレージからユーザー情報を使用
+        if (!USE_MOCK_DATA) {
+            const savedUser = localStorage.getItem('currentUser');
+            if (savedUser) {
+                console.log('💾 ローカルストレージからユーザー情報を復元');
+                currentUser = JSON.parse(savedUser);
+                updateUserInfo();
+                return;
+            }
+        }
+        
+        // それでも失敗した場合のみログアウト
+        console.log('❌ ユーザー情報復元に失敗、ログアウト実行');
         logout();
     }
 }
@@ -2197,8 +2224,8 @@ function showPostResult(type, message) {
     resultDiv.classList.remove('hidden');
 }
 
-// お知らせ検索
-function searchAnnouncements() {
+// お知らせ検索（ストリーム横断）
+async function searchAnnouncements() {
     const searchInput = document.getElementById('stream-search');
     if (!searchInput) {
         console.error('❌ stream-search要素が見つかりません');
@@ -2206,49 +2233,195 @@ function searchAnnouncements() {
     }
 
     const query = searchInput.value.trim();
-    console.log('🔍 お知らせ検索:', query);
+    console.log('🔍 ストリーム横断検索:', query);
+
+    const announcementsContainer = document.getElementById('stream-announcements');
 
     if (!query) {
         renderStreamAnnouncements();
         return;
     }
 
-    if (!currentStreamAnnouncements) {
-        console.log('📝 検索対象のお知らせがありません');
-        return;
+    // 検索中表示
+    announcementsContainer.innerHTML = `
+        <div class="text-center py-8">
+            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+            <p class="mt-2 text-gray-500">検索中...</p>
+        </div>
+    `;
+
+    try {
+        if (USE_MOCK_DATA) {
+            // モックデータでの検索
+            const mockResults = generateMockSearchResults(query);
+            renderSearchResults(mockResults, query);
+        } else {
+            // 実際のAPIを呼び出し
+            const response = await fetch(`${API_BASE_URL}/api/streams/search?q=${encodeURIComponent(query)}`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${authToken}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error(`検索エラー: ${response.status}`);
+            }
+
+            const searchResults = await response.json();
+            console.log('🔍 検索結果:', searchResults.length, '件');
+            renderSearchResults(searchResults, query);
+        }
+    } catch (error) {
+        console.error('❌ 検索エラー:', error);
+        announcementsContainer.innerHTML = `
+            <div class="text-center py-8 text-red-500">
+                <p>検索中にエラーが発生しました</p>
+                <p class="text-sm">${error.message}</p>
+            </div>
+        `;
     }
+}
 
-    const filteredAnnouncements = currentStreamAnnouncements.filter(announcement => 
-        announcement.title.toLowerCase().includes(query.toLowerCase()) ||
-        announcement.content.toLowerCase().includes(query.toLowerCase()) ||
-        announcement.author.toLowerCase().includes(query.toLowerCase())
-    );
-
-    console.log('🔍 検索結果:', filteredAnnouncements.length, '件');
-
+// 検索結果を表示
+function renderSearchResults(searchResults, query) {
     const announcementsContainer = document.getElementById('stream-announcements');
-    if (filteredAnnouncements.length === 0) {
+    
+    if (searchResults.length === 0) {
         announcementsContainer.innerHTML = `
             <div class="text-center py-8 text-gray-500">
+                <svg class="mx-auto h-12 w-12 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                </svg>
+                <h3 class="text-lg font-medium text-gray-900 mb-2">検索結果なし</h3>
                 <p>「${escapeHtml(query)}」に一致するお知らせが見つかりません</p>
             </div>
         `;
-    } else {
-        const announcementsHTML = filteredAnnouncements.map(announcement => `
-            <div class="bg-white rounded-lg shadow p-6 mb-4">
-                <div class="flex items-start justify-between mb-3">
-                    <h3 class="text-lg font-semibold text-gray-900">${escapeHtml(announcement.title)}</h3>
-                    ${announcement.priority === 'high' ? '<span class="px-2 py-1 text-xs bg-red-100 text-red-800 rounded-full">重要</span>' : ''}
-                </div>
-                <p class="text-gray-700 mb-4">${escapeHtml(announcement.content)}</p>
-                <div class="flex items-center text-sm text-gray-500">
-                    <span class="mr-4">👤 ${escapeHtml(announcement.author)}</span>
-                    <span>📅 ${formatDate(announcement.created_at)}</span>
+        return;
+    }
+
+    const searchResultsHTML = searchResults.map(result => `
+        <div class="bg-white rounded-lg shadow p-6 mb-4 border-l-4 border-blue-500">
+            <div class="flex items-start justify-between mb-3">
+                <div class="flex-1">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-1">${escapeHtml(result.title)}</h3>
+                    <div class="flex items-center gap-3 text-sm text-gray-600 mb-2">
+                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                            ${result.stream ? escapeHtml(result.stream.name) : 'ストリーム不明'}
+                        </span>
+                        ${result.announcement_type ? `<span class="text-gray-500">${result.announcement_type}</span>` : ''}
+                    </div>
                 </div>
             </div>
-        `).join('');
-        announcementsContainer.innerHTML = announcementsHTML;
+            <p class="text-gray-700 mb-4">${escapeHtml(result.content)}</p>
+            <div class="flex items-center justify-between text-sm text-gray-500">
+                <div class="flex items-center gap-4">
+                    <span>👤 ${result.creator ? escapeHtml(result.creator.name) : '不明'}</span>
+                    <span>📅 ${formatDate(result.created_at)}</span>
+                </div>
+                <button 
+                    onclick="viewInStream('${result.stream ? result.stream.id : ''}', '${result.id}')" 
+                    class="text-blue-600 hover:text-blue-800 font-medium"
+                >
+                    ストリームで表示 →
+                </button>
+            </div>
+        </div>
+    `).join('');
+
+    announcementsContainer.innerHTML = `
+        <div class="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div class="flex items-center">
+                <svg class="h-5 w-5 text-blue-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                </svg>
+                <span class="text-blue-800 font-medium">検索結果: 「${escapeHtml(query)}」</span>
+                <span class="ml-2 text-blue-600">(${searchResults.length}件)</span>
+            </div>
+        </div>
+        ${searchResultsHTML}
+    `;
+}
+
+// モックデータでの検索結果生成
+function generateMockSearchResults(query) {
+    const mockResults = [
+        {
+            id: 'search-1',
+            title: 'テスト期間のお知らせ',
+            content: '来週からテスト期間が始まります。しっかり準備をしましょう。',
+            announcement_type: 'GENERAL',
+            stream: { id: 'stream-1', name: '1年A組', stream_type: 'CLASS' },
+            creator: { name: '田中先生' },
+            created_at: new Date(Date.now() - 86400000).toISOString()
+        },
+        {
+            id: 'search-2',
+            title: '課題提出について',
+            content: '数学の課題提出期限は明日までです。忘れずに提出してください。',
+            announcement_type: 'ASSIGNMENT',
+            stream: { id: 'stream-2', name: '数学科', stream_type: 'SUBJECT' },
+            creator: { name: '佐藤先生' },
+            created_at: new Date(Date.now() - 172800000).toISOString()
+        },
+        {
+            id: 'search-3',
+            title: '体育祭の準備について',
+            content: '体育祭に向けて各クラスで準備を進めてください。リレーの選手選出もお忘れなく。',
+            announcement_type: 'EVENT',
+            stream: { id: 'stream-3', name: '全校', stream_type: 'SCHOOL' },
+            creator: { name: '山田先生' },
+            created_at: new Date(Date.now() - 259200000).toISOString()
+        },
+        {
+            id: 'search-4',
+            title: '関数のグラフ練習問題',
+            content: '二次関数のグラフを描く練習問題です。頂点の座標も求めてください。',
+            announcement_type: 'ASSIGNMENT',
+            stream: { id: 'stream-2', name: '数学科', stream_type: 'SUBJECT' },
+            creator: { name: '佐藤先生' },
+            created_at: new Date(Date.now() - 345600000).toISOString()
+        }
+    ];
+
+    console.log('🔍 検索クエリ:', `"${query}"`);
+    console.log('📝 全モックデータ:', mockResults);
+    
+    const filteredResults = mockResults.filter(result => {
+        const titleMatch = result.title.toLowerCase().includes(query.toLowerCase());
+        const contentMatch = result.content.toLowerCase().includes(query.toLowerCase());
+        
+        console.log(`📋 チェック中 "${result.title}":`, {
+            titleMatch,
+            contentMatch,
+            match: titleMatch || contentMatch
+        });
+        
+        return titleMatch || contentMatch;
+    });
+    
+    console.log('✅ フィルタリング結果:', filteredResults);
+    return filteredResults;
+}
+
+// ストリームで表示する関数
+function viewInStream(streamId, announcementId) {
+    if (!streamId) {
+        console.error('❌ ストリームIDが不明です');
+        return;
     }
+    
+    console.log('📍 ストリームに移動:', streamId, announcementId);
+    
+    // 検索をクリア
+    const searchInput = document.getElementById('stream-search');
+    if (searchInput) {
+        searchInput.value = '';
+    }
+    
+    // ストリームを選択
+    selectStream(streamId);
 }
 
 function updateNavigation(active) {
@@ -2404,8 +2577,17 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // 認証チェック
     console.log('🔐 認証チェック開始');
-    if (checkAuth()) {
-        console.log('✅ 認証済み - メインコンテンツ表示');
+    
+    // まずURLにOAuthコードがあるかチェック
+    const urlSearchParams = new URLSearchParams(window.location.search);
+    const hasOAuthCode = urlSearchParams.has('code') && !USE_MOCK_DATA;
+    
+    if (hasOAuthCode) {
+        console.log('🔗 OAuth callback detected, skipping normal auth check');
+        // OAuthコールバック処理は後で実行されるので、ここでは何もしない
+        showLoginPage(); // ローディング表示のため
+    } else if (checkAuth()) {
+        console.log('✅ 既存認証済み - メインコンテンツ表示');
         showMainContent();
         await initializeApp();
     } else {
@@ -2419,37 +2601,70 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     if (code && !USE_MOCK_DATA) {
         try {
-            console.log('OAuth callback started with code:', code);
-            document.getElementById('login-loading').classList.remove('hidden');
+            console.log('🔐 OAuth callback started with code:', code.substring(0, 20) + '...');
+            document.getElementById('login-loading')?.classList.remove('hidden');
+            document.getElementById('login-error')?.classList.add('hidden');
             
-            const response = await fetch(`${API_BASE_URL}/api/auth/google/callback?code=${code}`);
-            console.log('Response status:', response.status);
+            const callbackUrl = `${API_BASE_URL}/api/auth/google/callback?code=${encodeURIComponent(code)}`;
+            console.log('📡 Calling callback URL:', callbackUrl);
+            
+            const response = await fetch(callbackUrl, {
+                method: 'GET',
+                mode: 'cors',
+                credentials: 'include',
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                }
+            });
+            
+            console.log('📡 Response status:', response.status);
+            console.log('📡 Response headers:', Object.fromEntries(response.headers.entries()));
+            
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error('❌ HTTP Error:', response.status, errorText);
+                throw new Error(`HTTP ${response.status}: ${errorText}`);
+            }
+            
             const data = await response.json();
-            console.log('Response data:', data);
+            console.log('✅ Response data received:', {
+                hasAccessToken: !!data.access_token,
+                hasUser: !!data.user,
+                tokenType: data.token_type,
+                userEmail: data.user?.email
+            });
             
-            if (data.access_token) {
+            if (data.access_token && data.user) {
+                console.log('💾 Storing auth data...');
                 localStorage.setItem('authToken', data.access_token);
                 localStorage.setItem('currentUser', JSON.stringify(data.user));
                 authToken = data.access_token;
                 currentUser = data.user;
                 
                 // URLをクリーンアップ
+                console.log('🧹 Cleaning up URL...');
                 window.history.replaceState({}, document.title, window.location.pathname);
                 
-                console.log('About to call showMainContent');
+                console.log('🏠 Showing main content...');
                 showMainContent();
-                console.log('About to call initializeApp');
+                console.log('🚀 Initializing app...');
                 await initializeApp();
                 
-                document.getElementById('login-loading').classList.add('hidden');
+                document.getElementById('login-loading')?.classList.add('hidden');
+                console.log('✅ OAuth login completed successfully');
             } else {
-                throw new Error('認証に失敗しました');
+                console.error('❌ Invalid response format:', data);
+                throw new Error('認証レスポンスが無効です: ' + JSON.stringify(data));
             }
         } catch (error) {
-            console.error('OAuth callback error:', error);
-            document.getElementById('login-loading').classList.add('hidden');
-            document.getElementById('login-error').classList.remove('hidden');
-            document.getElementById('login-error-message').textContent = 'ログインに失敗しました';
+            console.error('❌ OAuth callback error:', error);
+            document.getElementById('login-loading')?.classList.add('hidden');
+            document.getElementById('login-error')?.classList.remove('hidden');
+            const errorElement = document.getElementById('login-error-message');
+            if (errorElement) {
+                errorElement.textContent = `ログインに失敗しました: ${error.message}`;
+            }
             showLoginPage();
         }
     }

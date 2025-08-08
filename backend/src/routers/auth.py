@@ -134,3 +134,35 @@ async def get_me(current_user: User = Depends(get_current_user)):
         "created_at": current_user.created_at,
         "updated_at": current_user.updated_at,
     }
+
+
+@router.post("/dev/login")
+async def dev_login(session: AsyncSession = Depends(get_async_session)):
+    """開発用：認証なしでテストユーザーとしてログイン"""
+    # 既存のテストユーザーを取得
+    statement = select(User).where(User.email == "test@example.com")
+    result = await session.execute(statement)
+    user = result.scalars().first()
+    
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, 
+            detail="テストユーザーが見つかりません。先にサンプルデータを作成してください。"
+        )
+    
+    # JWTトークンを作成
+    access_token = auth_manager.create_access_token(
+        data={"sub": user.id, "email": user.email, "role": str(user.role)}
+    )
+    
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "user": {
+            "id": user.id,
+            "email": user.email,
+            "name": user.name,
+            "role": user.role,
+            "picture_url": user.picture_url,
+        }
+    }
