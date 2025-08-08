@@ -185,11 +185,41 @@ function getRoleText(role) {
 }
 
 // 認証機能
-function checkAuth() {
+async function checkAuth() {
     const token = localStorage.getItem('authToken');
     if (token) {
         authToken = token;
-        return true;
+        // トークンの有効性を確認
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+            if (response.ok) {
+                const user = await response.json();
+                currentUser = user;
+                localStorage.setItem('currentUser', JSON.stringify(user));
+                return true;
+            } else {
+                // トークンが無効な場合、ローカルストレージをクリア
+                console.log('🔓 無効なトークンを検出、ローカルストレージをクリア');
+                localStorage.removeItem('authToken');
+                localStorage.removeItem('currentUser');
+                authToken = null;
+                currentUser = null;
+                return false;
+            }
+        } catch (error) {
+            console.error('認証チェックエラー:', error);
+            // エラーの場合もローカルストレージをクリア
+            localStorage.removeItem('authToken');
+            localStorage.removeItem('currentUser');
+            authToken = null;
+            currentUser = null;
+            return false;
+        }
     }
     return false;
 }
@@ -2586,7 +2616,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         console.log('🔗 OAuth callback detected, skipping normal auth check');
         // OAuthコールバック処理は後で実行されるので、ここでは何もしない
         showLoginPage(); // ローディング表示のため
-    } else if (checkAuth()) {
+    } else if (await checkAuth()) {
         console.log('✅ 既存認証済み - メインコンテンツ表示');
         showMainContent();
         await initializeApp();

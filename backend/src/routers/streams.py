@@ -22,7 +22,7 @@ from ..models import (
 router = APIRouter(prefix="/api/streams", tags=["streams"])
 
 
-@router.get("/", response_model=List[dict])
+@router.get("", response_model=List[dict])
 async def get_my_streams(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_async_session),
@@ -513,7 +513,7 @@ async def search_across_streams(
     return search_results
 
 
-@router.post("/", response_model=dict)
+@router.post("", response_model=dict)
 async def create_stream(
     name: str,
     description: Optional[str] = None,

@@ -59,7 +59,7 @@ async def elevate_to_stream_admin(
         .values(role=StreamRole.STREAM_ADMIN)
     )
 
-    result = await session.exec(statement)
+    result = await session.execute(statement)
     await session.commit()
 
     # Check if any rows were affected
@@ -83,8 +83,8 @@ async def elevate_to_stream_admin_for_specific_stream(
 
     # ストリームが存在するかチェック
     stream_statement = select(Stream).where(Stream.id == elevate_request.stream_id)
-    stream_result = await session.exec(stream_statement)
-    stream = stream_result.first()
+    stream_result = await session.execute(stream_statement)
+    stream = stream_result.scalars().first()
 
     if not stream:
         raise HTTPException(
@@ -96,8 +96,8 @@ async def elevate_to_stream_admin_for_specific_stream(
         (StreamMembership.user_id == current_user.id)
         & (StreamMembership.stream_id == elevate_request.stream_id)
     )
-    membership_result = await session.exec(membership_statement)
-    membership = membership_result.first()
+    membership_result = await session.execute(membership_statement)
+    membership = membership_result.scalars().first()
 
     if not membership:
         raise HTTPException(
@@ -145,7 +145,7 @@ async def elevate_to_stream_admin_for_specific_stream(
     }
 
 
-@router.get("/")
+@router.get("")
 async def get_profile(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_async_session),
@@ -156,8 +156,8 @@ async def get_profile(
     statement = select(StreamMembership).where(
         StreamMembership.user_id == current_user.id
     )
-    result = await session.exec(statement)
-    memberships = result.all()
+    result = await session.execute(statement)
+    memberships = result.scalars().all()
 
     membership_info = []
     for membership in memberships:
@@ -165,8 +165,8 @@ async def get_profile(
         from ..models import Stream
 
         stream_statement = select(Stream).where(Stream.id == membership.stream_id)
-        stream_result = await session.exec(stream_statement)
-        stream = stream_result.first()
+        stream_result = await session.execute(stream_statement)
+        stream = stream_result.scalars().first()
 
         if stream:
             membership_info.append(
@@ -192,7 +192,7 @@ async def get_profile(
     }
 
 
-@router.put("/")
+@router.put("")
 async def update_profile(
     profile_update: ProfileUpdate,
     current_user: User = Depends(get_current_user),

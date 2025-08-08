@@ -65,7 +65,7 @@ async def google_callback(
 
         # Create tokens
         access_token = auth_manager.create_access_token(
-            data={"sub": user.id, "email": user.email, "role": user.role}
+            data={"sub": user.id, "email": user.email, "role": user.role.value}
         )
         refresh_token = auth_manager.create_refresh_token(data={"sub": user.id})
 
@@ -111,7 +111,7 @@ async def refresh_token(
 
         # Create new access token
         access_token = auth_manager.create_access_token(
-            data={"sub": user.id, "email": user.email, "role": user.role}
+            data={"sub": user.id, "email": user.email, "role": user.role.value}
         )
 
         return {"access_token": access_token, "token_type": "bearer"}
@@ -143,18 +143,18 @@ async def dev_login(session: AsyncSession = Depends(get_async_session)):
     statement = select(User).where(User.email == "test@example.com")
     result = await session.execute(statement)
     user = result.scalars().first()
-    
+
     if not user:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, 
-            detail="テストユーザーが見つかりません。先にサンプルデータを作成してください。"
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="テストユーザーが見つかりません。先にサンプルデータを作成してください。",
         )
-    
+
     # JWTトークンを作成
     access_token = auth_manager.create_access_token(
-        data={"sub": user.id, "email": user.email, "role": str(user.role)}
+        data={"sub": user.id, "email": user.email, "role": user.role.value}
     )
-    
+
     return {
         "access_token": access_token,
         "token_type": "bearer",
@@ -164,5 +164,5 @@ async def dev_login(session: AsyncSession = Depends(get_async_session)):
             "name": user.name,
             "role": user.role,
             "picture_url": user.picture_url,
-        }
+        },
     }

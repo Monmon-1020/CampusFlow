@@ -13,7 +13,7 @@ from ..schemas import EventCreate, EventResponse, EventUpdate
 router = APIRouter(prefix="/api/events", tags=["events"])
 
 
-@router.post("/", response_model=EventResponse)
+@router.post("", response_model=EventResponse)
 async def create_event(
     event_data: EventCreate,
     current_user: User = Depends(get_current_admin),
@@ -34,7 +34,7 @@ async def create_event(
     return event
 
 
-@router.get("/", response_model=List[EventResponse])
+@router.get("", response_model=List[EventResponse])
 async def get_events(
     week: bool = Query(False, description="Get events for current week"),
     category: Optional[str] = Query(None, description="Filter by category"),

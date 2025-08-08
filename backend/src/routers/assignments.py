@@ -20,7 +20,7 @@ from ..schemas import (
 router = APIRouter(prefix="/api/assignments", tags=["assignments"])
 
 
-@router.post("/", response_model=AssignmentResponse)
+@router.post("", response_model=AssignmentResponse)
 async def create_assignment(
     assignment_data: AssignmentCreate,
     current_user: User = Depends(get_current_teacher),
@@ -33,7 +33,7 @@ async def create_assignment(
     return assignment
 
 
-@router.get("/", response_model=List[AssignmentResponse])
+@router.get("", response_model=List[AssignmentResponse])
 async def get_assignments(
     mine: bool = Query(False, description="Get assignments for current user"),
     subject: Optional[str] = Query(None, description="Filter by subject"),
