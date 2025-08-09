@@ -59,8 +59,8 @@ async def get_assignments(
 
     query = query.order_by(Assignment.due_at)
 
-    result = await session.exec(query)
-    assignments = result.all()
+    result = await session.execute(query)
+    assignments = result.scalars().all()
     return assignments
 
 
@@ -71,8 +71,8 @@ async def get_assignment(
     session: AsyncSession = Depends(get_async_session),
 ):
     statement = select(Assignment).where(Assignment.id == assignment_id)
-    result = await session.exec(statement)
-    assignment = result.first()
+    result = await session.execute(statement)
+    assignment = result.scalars().first()
 
     if not assignment:
         raise HTTPException(
@@ -90,8 +90,8 @@ async def update_assignment(
     session: AsyncSession = Depends(get_async_session),
 ):
     statement = select(Assignment).where(Assignment.id == assignment_id)
-    result = await session.exec(statement)
-    assignment = result.first()
+    result = await session.execute(statement)
+    assignment = result.scalars().first()
 
     if not assignment:
         raise HTTPException(
@@ -124,8 +124,8 @@ async def delete_assignment(
     session: AsyncSession = Depends(get_async_session),
 ):
     statement = select(Assignment).where(Assignment.id == assignment_id)
-    result = await session.exec(statement)
-    assignment = result.first()
+    result = await session.execute(statement)
+    assignment = result.scalars().first()
 
     if not assignment:
         raise HTTPException(
@@ -154,8 +154,8 @@ async def create_assignment_log(
 ):
     # Check if assignment exists
     statement = select(Assignment).where(Assignment.id == log_data.assignment_id)
-    result = await session.exec(statement)
-    assignment = result.first()
+    result = await session.execute(statement)
+    assignment = result.scalars().first()
 
     if not assignment:
         raise HTTPException(
@@ -169,8 +169,8 @@ async def create_assignment_log(
             AssignmentLog.user_id == current_user.id,
         )
     )
-    result = await session.exec(existing_log_statement)
-    existing_log = result.first()
+    result = await session.execute(existing_log_statement)
+    existing_log = result.scalars().first()
 
     if existing_log:
         raise HTTPException(
@@ -194,8 +194,8 @@ async def update_assignment_log(
     session: AsyncSession = Depends(get_async_session),
 ):
     statement = select(AssignmentLog).where(AssignmentLog.id == log_id)
-    result = await session.exec(statement)
-    log = result.first()
+    result = await session.execute(statement)
+    log = result.scalars().first()
 
     if not log:
         raise HTTPException(
@@ -234,6 +234,6 @@ async def get_assignment_logs(
 
     query = query.order_by(AssignmentLog.updated_at.desc())
 
-    result = await session.exec(query)
-    logs = result.all()
+    result = await session.execute(query)
+    logs = result.scalars().all()
     return logs

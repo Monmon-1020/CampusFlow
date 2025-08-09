@@ -73,8 +73,8 @@ async def get_events(
 
     query = query.order_by(Event.start_at)
 
-    result = await session.exec(query)
-    events = result.all()
+    result = await session.execute(query)
+    events = result.scalars().all()
     return events
 
 
@@ -85,8 +85,8 @@ async def get_event(
     session: AsyncSession = Depends(get_async_session),
 ):
     statement = select(Event).where(Event.id == event_id)
-    result = await session.exec(statement)
-    event = result.first()
+    result = await session.execute(statement)
+    event = result.scalars().first()
 
     if not event:
         raise HTTPException(
@@ -104,8 +104,8 @@ async def update_event(
     session: AsyncSession = Depends(get_async_session),
 ):
     statement = select(Event).where(Event.id == event_id)
-    result = await session.exec(statement)
-    event = result.first()
+    result = await session.execute(statement)
+    event = result.scalars().first()
 
     if not event:
         raise HTTPException(
@@ -145,8 +145,8 @@ async def delete_event(
     session: AsyncSession = Depends(get_async_session),
 ):
     statement = select(Event).where(Event.id == event_id)
-    result = await session.exec(statement)
-    event = result.first()
+    result = await session.execute(statement)
+    event = result.scalars().first()
 
     if not event:
         raise HTTPException(

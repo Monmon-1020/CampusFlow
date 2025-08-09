@@ -10,6 +10,7 @@ class UserRole(str, Enum):
     STUDENT = "student"
     TEACHER = "teacher"
     ADMIN = "admin"
+    SUPER_ADMIN = "super_admin"
 
 
 class AssignmentStatus(str, Enum):

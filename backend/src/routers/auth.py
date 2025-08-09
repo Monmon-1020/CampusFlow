@@ -32,8 +32,8 @@ async def google_callback(
 
         # Check if user exists
         statement = select(User).where(User.email == user_info["email"])
-        result = await session.exec(statement)
-        user = result.first()
+        result = await session.execute(statement)
+        user = result.scalars().first()
 
         is_new_user = False
         if not user:
@@ -101,8 +101,8 @@ async def refresh_token(
 
         # Get user from database
         statement = select(User).where(User.id == user_id)
-        result = await session.exec(statement)
-        user = result.first()
+        result = await session.execute(statement)
+        user = result.scalars().first()
 
         if not user:
             raise HTTPException(
@@ -149,6 +149,51 @@ async def dev_login(session: AsyncSession = Depends(get_async_session)):
             status_code=status.HTTP_404_NOT_FOUND,
             detail="テストユーザーが見つかりません。先にサンプルデータを作成してください。",
         )
+
+    # JWTトークンを作成
+    access_token = auth_manager.create_access_token(
+        data={"sub": user.id, "email": user.email, "role": user.role.value}
+    )
+
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "user": {
+            "id": user.id,
+            "email": user.email,
+            "name": user.name,
+            "role": user.role,
+            "picture_url": user.picture_url,
+        },
+    }
+
+
+@router.post("/super_admin/login")
+async def super_admin_login(session: AsyncSession = Depends(get_async_session)):
+    """super_admin用ログイン：固定のsuper_adminユーザーでログイン"""
+    # super_adminユーザーを取得または作成
+    statement = select(User).where(User.email == "super_admin@campusflow.com")
+    result = await session.execute(statement)
+    user = result.scalars().first()
+
+    if not user:
+        # super_adminユーザーが存在しない場合は作成
+        from ..models import UserRole
+        user = User(
+            email="super_admin@campusflow.com",
+            name="Super Administrator",
+            role=UserRole.SUPER_ADMIN,
+            picture_url=None,
+        )
+        session.add(user)
+        await session.commit()
+        await session.refresh(user)
+
+        # サンプルデータを作成
+        try:
+            await ensure_user_has_sample_data(session, user)
+        except Exception as e:
+            print(f"サンプルデータ作成エラー: {e}")
 
     # JWTトークンを作成
     access_token = auth_manager.create_access_token(

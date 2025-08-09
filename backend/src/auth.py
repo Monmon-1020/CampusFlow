@@ -119,18 +119,26 @@ async def get_current_user(
 
 
 async def get_current_teacher(current_user: User = Depends(get_current_user)) -> User:
-    if current_user.role not in ["teacher", "admin"]:
+    if current_user.role not in ["teacher", "admin", "super_admin"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Teacher or admin access required",
+            detail="Teacher, admin, or super_admin access required",
         )
     return current_user
 
 
 async def get_current_admin(current_user: User = Depends(get_current_user)) -> User:
-    if current_user.role != "admin":
+    if current_user.role not in ["admin", "super_admin"]:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required"
+            status_code=status.HTTP_403_FORBIDDEN, detail="Admin or super_admin access required"
+        )
+    return current_user
+
+
+async def get_current_super_admin(current_user: User = Depends(get_current_user)) -> User:
+    if current_user.role != "super_admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Super admin access required"
         )
     return current_user
 
@@ -143,8 +151,8 @@ async def get_stream_role(
         (StreamMembership.user_id == user_id)
         & (StreamMembership.stream_id == stream_id)
     )
-    result = await session.exec(statement)
-    membership = result.first()
+    result = await session.execute(statement)
+    membership = result.scalars().first()
 
     if membership:
         return membership.role

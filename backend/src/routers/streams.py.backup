@@ -2,7 +2,7 @@ import json
 from datetime import datetime
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, Form, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import and_, or_, select
 
@@ -95,8 +95,8 @@ async def get_stream_announcements(
             StreamMembership.stream_id == stream_id,
         )
     )
-    membership_result = await session.execute(membership_statement)
-    membership = membership_result.scalars().first()
+    membership_result = await session.exec(membership_statement)
+    membership = membership_result.first()
 
     if not membership:
         raise HTTPException(
@@ -123,16 +123,16 @@ async def get_stream_announcements(
         .limit(limit)
     )
 
-    result = await session.execute(statement)
-    announcements = result.scalars().all()
+    result = await session.exec(statement)
+    announcements = result.all()
 
     # 各お知らせの作成者とリアクション情報を取得
     response_data = []
     for announcement in announcements:
         # 作成者情報を取得
         creator_statement = select(User).where(User.id == announcement.created_by)
-        creator_result = await session.execute(creator_statement)
-        creator = creator_result.scalars().first()
+        creator_result = await session.exec(creator_statement)
+        creator = creator_result.first()
 
         # ユーザーのリアクション情報を取得
         reaction_statement = select(AnnouncementReaction).where(
@@ -141,15 +141,15 @@ async def get_stream_announcements(
                 AnnouncementReaction.user_id == current_user.id,
             )
         )
-        reaction_result = await session.execute(reaction_statement)
-        user_reactions = reaction_result.scalars().all()
+        reaction_result = await session.exec(reaction_statement)
+        user_reactions = reaction_result.all()
 
         # 全体のリアクション数を取得
         total_reactions_statement = select(AnnouncementReaction).where(
             AnnouncementReaction.announcement_id == announcement.id
         )
-        total_reactions_result = await session.execute(total_reactions_statement)
-        total_reactions = total_reactions_result.scalars().all()
+        total_reactions_result = await session.exec(total_reactions_statement)
+        total_reactions = total_reactions_result.all()
 
         # リアクション集計
         reaction_counts = {}
@@ -210,8 +210,8 @@ async def create_announcement(
             StreamMembership.stream_id == stream_id,
         )
     )
-    membership_result = await session.execute(membership_statement)
-    membership = membership_result.scalars().first()
+    membership_result = await session.exec(membership_statement)
+    membership = membership_result.first()
 
     # ピン留めは管理者のみ
     if is_pinned and membership and membership.role != StreamRole.ADMIN:
@@ -268,8 +268,8 @@ async def update_announcement(
     announcement_statement = select(Announcement).where(
         and_(Announcement.id == announcement_id, Announcement.stream_id == stream_id)
     )
-    announcement_result = await session.execute(announcement_statement)
-    announcement = announcement_result.scalars().first()
+    announcement_result = await session.exec(announcement_statement)
+    announcement = announcement_result.first()
 
     if not announcement:
         raise HTTPException(
@@ -283,8 +283,8 @@ async def update_announcement(
             StreamMembership.stream_id == stream_id,
         )
     )
-    membership_result = await session.execute(membership_statement)
-    membership = membership_result.scalars().first()
+    membership_result = await session.exec(membership_statement)
+    membership = membership_result.first()
 
     # 作成者または管理者のみ編集可能
     is_creator = announcement.created_by == current_user.id
@@ -352,8 +352,8 @@ async def delete_announcement(
     announcement_statement = select(Announcement).where(
         and_(Announcement.id == announcement_id, Announcement.stream_id == stream_id)
     )
-    announcement_result = await session.execute(announcement_statement)
-    announcement = announcement_result.scalars().first()
+    announcement_result = await session.exec(announcement_statement)
+    announcement = announcement_result.first()
 
     if not announcement:
         raise HTTPException(
@@ -367,8 +367,8 @@ async def delete_announcement(
             StreamMembership.stream_id == stream_id,
         )
     )
-    membership_result = await session.execute(membership_statement)
-    membership = membership_result.scalars().first()
+    membership_result = await session.exec(membership_statement)
+    membership = membership_result.first()
 
     # 作成者または管理者のみ削除可能
     is_creator = announcement.created_by == current_user.id
@@ -386,8 +386,8 @@ async def delete_announcement(
     reaction_statement = select(AnnouncementReaction).where(
         AnnouncementReaction.announcement_id == announcement_id
     )
-    reaction_result = await session.execute(reaction_statement)
-    reactions = reaction_result.scalars().all()
+    reaction_result = await session.exec(reaction_statement)
+    reactions = reaction_result.all()
 
     for reaction in reactions:
         await session.delete(reaction)
@@ -417,8 +417,8 @@ async def add_reaction(
             AnnouncementReaction.reaction_type == reaction_type,
         )
     )
-    existing_result = await session.execute(existing_reaction_statement)
-    existing_reaction = existing_result.scalars().first()
+    existing_result = await session.exec(existing_reaction_statement)
+    existing_reaction = existing_result.first()
 
     if existing_reaction:
         # 既存のリアクションを削除（トグル）
@@ -449,8 +449,8 @@ async def search_across_streams(
     membership_statement = select(StreamMembership).where(
         StreamMembership.user_id == current_user.id
     )
-    membership_result = await session.execute(membership_statement)
-    memberships = membership_result.scalars().all()
+    membership_result = await session.exec(membership_statement)
+    memberships = membership_result.all()
 
     accessible_stream_ids = [m.stream_id for m in memberships]
 
@@ -474,21 +474,21 @@ async def search_across_streams(
         .limit(50)
     )
 
-    result = await session.execute(search_statement)
-    announcements = result.scalars().all()
+    result = await session.exec(search_statement)
+    announcements = result.all()
 
     # 結果をストリーム情報と共に返す
     search_results = []
     for announcement in announcements:
         # ストリーム情報を取得
         stream_statement = select(Stream).where(Stream.id == announcement.stream_id)
-        stream_result = await session.execute(stream_statement)
-        stream = stream_result.scalars().first()
+        stream_result = await session.exec(stream_statement)
+        stream = stream_result.first()
 
         # 作成者情報を取得
         creator_statement = select(User).where(User.id == announcement.created_by)
-        creator_result = await session.execute(creator_statement)
-        creator = creator_result.scalars().first()
+        creator_result = await session.exec(creator_statement)
+        creator = creator_result.first()
 
         search_results.append(
             {
@@ -515,13 +515,13 @@ async def search_across_streams(
 
 @router.post("", response_model=dict)
 async def create_stream(
-    name: str = Form(...),
-    description: Optional[str] = Form(None),
-    stream_type: StreamType = Form(StreamType.CLASS),
-    class_name: Optional[str] = Form(None),
-    subject_name: Optional[str] = Form(None),
-    grade: Optional[int] = Form(None),
-    allow_student_posts: bool = Form(False),
+    name: str,
+    description: Optional[str] = None,
+    stream_type: StreamType = StreamType.CLASS,
+    class_name: Optional[str] = None,
+    subject_name: Optional[str] = None,
+    grade: Optional[int] = None,
+    allow_student_posts: bool = False,
     current_user: User = Depends(get_current_teacher),  # 教師以上のみ
     session: AsyncSession = Depends(get_async_session),
 ):
@@ -564,8 +564,8 @@ async def create_stream(
 @router.post("/{stream_id}/invite", response_model=dict)
 async def invite_user_to_stream(
     stream_id: str,
-    email: str = Form(...),
-    role: StreamRole = Form(StreamRole.STUDENT),
+    email: str,
+    role: StreamRole = StreamRole.STUDENT,
     current_user: User = Depends(require_stream_role({"stream_admin", "admin"})),
     session: AsyncSession = Depends(get_async_session),
 ):
@@ -573,8 +573,8 @@ async def invite_user_to_stream(
     
     # ストリーム存在確認
     stream_statement = select(Stream).where(Stream.id == stream_id)
-    stream_result = await session.execute(stream_statement)
-    stream = stream_result.scalars().first()
+    stream_result = await session.exec(stream_statement)
+    stream = stream_result.first()
     
     if not stream:
         raise HTTPException(
@@ -584,8 +584,8 @@ async def invite_user_to_stream(
     
     # ユーザー検索（メールアドレスで）
     user_statement = select(User).where(User.email == email)
-    user_result = await session.execute(user_statement)
-    user = user_result.scalars().first()
+    user_result = await session.exec(user_statement)
+    user = user_result.first()
     
     if not user:
         raise HTTPException(
@@ -600,8 +600,8 @@ async def invite_user_to_stream(
             StreamMembership.stream_id == stream_id
         )
     )
-    existing_result = await session.execute(existing_membership_statement)
-    existing_membership = existing_result.scalars().first()
+    existing_result = await session.exec(existing_membership_statement)
+    existing_membership = existing_result.first()
     
     if existing_membership:
         return {
@@ -655,8 +655,8 @@ async def get_stream_members(
             StreamMembership.stream_id == stream_id
         )
     )
-    user_membership_result = await session.execute(user_membership_statement)
-    user_membership = user_membership_result.scalars().first()
+    user_membership_result = await session.exec(user_membership_statement)
+    user_membership = user_membership_result.first()
     
     if not user_membership:
         raise HTTPException(
@@ -668,15 +668,15 @@ async def get_stream_members(
     memberships_statement = select(StreamMembership).where(
         StreamMembership.stream_id == stream_id
     )
-    memberships_result = await session.execute(memberships_statement)
-    memberships = memberships_result.scalars().all()
+    memberships_result = await session.exec(memberships_statement)
+    memberships = memberships_result.all()
     
     members = []
     for membership in memberships:
         # ユーザー情報を取得
         user_statement = select(User).where(User.id == membership.user_id)
-        user_result = await session.execute(user_statement)
-        user = user_result.scalars().first()
+        user_result = await session.exec(user_statement)
+        user = user_result.first()
         
         if user:
             members.append({

@@ -177,6 +177,8 @@ function getRoleText(role) {
             return '教師';
         case 'admin':
             return '管理者';
+        case 'super_admin':
+            return 'システム管理者';
         case 'stream_admin':
             return 'ストリーム管理者';
         default:
@@ -356,6 +358,81 @@ async function loginWithGoogle() {
         document.getElementById('login-loading').classList.add('hidden');
         document.getElementById('login-error').classList.remove('hidden');
         document.getElementById('login-error-message').textContent = error.message;
+    }
+}
+
+// Super Admin ログイン機能
+async function loginAsSuperAdmin() {
+    try {
+        console.log('🔐 Super Admin ログイン開始');
+        document.getElementById('login-loading').classList.remove('hidden');
+        document.getElementById('login-error').classList.add('hidden');
+        
+        if (USE_MOCK_DATA) {
+            console.log('🧪 モック Super Admin ログインモード');
+            // モック Super Admin ユーザー
+            const mockToken = 'mock_super_admin_token_' + Date.now();
+            const mockUser = {
+                id: 'super_admin',
+                name: 'Super Administrator',
+                email: 'super_admin@campusflow.com',
+                role: 'super_admin',
+                picture_url: null
+            };
+            
+            console.log('💾 Super Admin 認証情報保存:', mockUser);
+            localStorage.setItem('authToken', mockToken);
+            localStorage.setItem('currentUser', JSON.stringify(mockUser));
+            authToken = mockToken;
+            currentUser = mockUser;
+            
+            setTimeout(() => {
+                console.log('✅ モック Super Admin ログイン完了');
+                document.getElementById('login-loading').classList.add('hidden');
+                showMainContent();
+                initializeApp();
+            }, 1000);
+        } else {
+            console.log('🔗 Super Admin APIログイン');
+            // Super Admin ログイン API呼び出し
+            const response = await fetch(`${API_BASE_URL}/api/auth/super_admin/login`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            if (!response.ok) {
+                throw new Error(`Super Admin ログイン失敗: ${response.status} ${response.statusText}`);
+            }
+            
+            const result = await response.json();
+            console.log('✅ Super Admin ログイン成功:', result.user);
+            
+            // 認証情報を保存
+            localStorage.setItem('authToken', result.access_token);
+            localStorage.setItem('currentUser', JSON.stringify(result.user));
+            authToken = result.access_token;
+            currentUser = result.user;
+            
+            // ログイン完了UI処理
+            setTimeout(() => {
+                document.getElementById('login-loading').classList.add('hidden');
+                showMainContent();
+                initializeApp();
+            }, 1000);
+        }
+    } catch (error) {
+        console.error('❌ Super Admin ログインエラー:', error);
+        document.getElementById('login-loading').classList.add('hidden');
+        
+        const errorElement = document.getElementById('login-error');
+        const errorMessageElement = document.getElementById('login-error-message');
+        
+        if (errorElement && errorMessageElement) {
+            errorMessageElement.textContent = error.message || 'Super Admin ログインに失敗しました';
+            errorElement.classList.remove('hidden');
+        }
     }
 }
 
@@ -1536,6 +1613,7 @@ function showStreams() {
     }
     
     updateNavigation('streams');
+    updateStreamAdminControls();
     
     // ストリームが読み込まれていない場合は取得してから表示
     console.log('🔍 ストリームデータ確認:', streams ? streams.length : 'null', '件');
@@ -2831,6 +2909,7 @@ window.showEvents = showEvents;
 window.showStreams = showStreams;
 window.showProfile = showProfile;
 window.loginWithGoogle = loginWithGoogle;
+window.loginAsSuperAdmin = loginAsSuperAdmin;
 window.logout = logout;
 window.closeWelcomeMessage = closeWelcomeMessage;
 window.selectStream = selectStream;
@@ -2842,3 +2921,228 @@ window.saveProfileChanges = saveProfileChanges;
 window.cancelProfileEdit = cancelProfileEdit;
 window.editAnnouncement = editAnnouncement;
 window.deleteAnnouncement = deleteAnnouncement;
+window.showCreateStreamModal = showCreateStreamModal;
+window.hideCreateStreamModal = hideCreateStreamModal;
+window.showInviteModal = showInviteModal;
+window.hideInviteModal = hideInviteModal;
+
+// 管理者機能表示制御
+function updateStreamAdminControls() {
+    const adminControls = document.getElementById('stream-admin-controls');
+    if (!adminControls) return;
+    
+    if (currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'admin' || currentUser.role === 'teacher')) {
+        adminControls.classList.remove('hidden');
+        adminControls.classList.add('flex');
+    } else {
+        adminControls.classList.add('hidden');
+        adminControls.classList.remove('flex');
+    }
+}
+
+// クラス作成モーダル
+function showCreateStreamModal() {
+    const modal = document.getElementById('create-stream-modal');
+    if (modal) {
+        modal.classList.remove('hidden');
+    }
+    
+    // ストリーム種類の変更イベントリスナーを設定
+    const streamTypeSelect = document.getElementById('stream-type');
+    const classFields = document.getElementById('class-fields');
+    const subjectFields = document.getElementById('subject-fields');
+    
+    if (streamTypeSelect && classFields && subjectFields) {
+        streamTypeSelect.addEventListener('change', function() {
+            if (this.value === 'class') {
+                classFields.classList.remove('hidden');
+                subjectFields.classList.add('hidden');
+            } else if (this.value === 'subject') {
+                classFields.classList.add('hidden');
+                subjectFields.classList.remove('hidden');
+            } else {
+                classFields.classList.add('hidden');
+                subjectFields.classList.add('hidden');
+            }
+        });
+    }
+    
+    // フォーム送信イベント
+    const form = document.getElementById('create-stream-form');
+    if (form) {
+        form.onsubmit = async function(e) {
+            e.preventDefault();
+            await createStream();
+        };
+    }
+}
+
+function hideCreateStreamModal() {
+    const modal = document.getElementById('create-stream-modal');
+    if (modal) {
+        modal.classList.add('hidden');
+    }
+    
+    // フォームをリセット
+    const form = document.getElementById('create-stream-form');
+    if (form) {
+        form.reset();
+    }
+}
+
+// ユーザー招待モーダル
+function showInviteModal() {
+    const modal = document.getElementById('invite-modal');
+    if (modal) {
+        modal.classList.remove('hidden');
+    }
+    
+    // ストリーム一覧を取得してセレクトボックスに設定
+    populateInviteStreamSelect();
+    
+    // フォーム送信イベント
+    const form = document.getElementById('invite-form');
+    if (form) {
+        form.onsubmit = async function(e) {
+            e.preventDefault();
+            await inviteUser();
+        };
+    }
+}
+
+function hideInviteModal() {
+    const modal = document.getElementById('invite-modal');
+    if (modal) {
+        modal.classList.add('hidden');
+    }
+    
+    // フォームをリセット
+    const form = document.getElementById('invite-form');
+    if (form) {
+        form.reset();
+    }
+}
+
+// ストリーム作成API呼び出し
+async function createStream() {
+    const submitBtn = document.querySelector('#create-stream-form button[type="submit"]');
+    const originalText = submitBtn.textContent;
+    
+    try {
+        submitBtn.disabled = true;
+        submitBtn.textContent = '作成中...';
+        
+        const params = new URLSearchParams();
+        params.append('name', document.getElementById('stream-name').value);
+        
+        const description = document.getElementById('stream-description').value;
+        if (description) params.append('description', description);
+        
+        params.append('stream_type', document.getElementById('stream-type').value);
+        params.append('allow_student_posts', document.getElementById('allow-student-posts').checked);
+        
+        const streamType = document.getElementById('stream-type').value;
+        if (streamType === 'class') {
+            const className = document.getElementById('class-name').value;
+            if (className) params.append('class_name', className);
+            
+            const grade = document.getElementById('grade').value;
+            if (grade) params.append('grade', grade);
+        } else if (streamType === 'subject') {
+            const subjectName = document.getElementById('subject-name').value;
+            if (subjectName) params.append('subject_name', subjectName);
+        }
+        
+        const response = await fetch(`${API_BASE_URL}/api/streams`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${authToken}`,
+                'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            body: params
+        });
+        
+        if (response.ok) {
+            const result = await response.json();
+            hideCreateStreamModal();
+            alert(`${result.name}を作成しました！`);
+            
+            // ストリーム一覧を更新
+            await fetchStreams();
+            renderStreams();
+        } else {
+            const error = await response.json();
+            alert(error.detail || 'ストリームの作成に失敗しました');
+        }
+    } catch (error) {
+        console.error('ストリーム作成エラー:', error);
+        alert('ストリーム作成中にエラーが発生しました');
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = originalText;
+    }
+}
+
+// ユーザー招待API呼び出し
+async function inviteUser() {
+    const submitBtn = document.querySelector('#invite-form button[type="submit"]');
+    const originalText = submitBtn.textContent;
+    
+    try {
+        submitBtn.disabled = true;
+        submitBtn.textContent = '招待中...';
+        
+        const streamId = document.getElementById('invite-stream').value;
+        const email = document.getElementById('invite-email').value;
+        const role = document.getElementById('invite-role').value;
+        
+        const params = new URLSearchParams();
+        params.append('email', email);
+        params.append('role', role);
+        
+        const response = await fetch(`${API_BASE_URL}/api/streams/${streamId}/invite`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${authToken}`,
+                'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            body: params
+        });
+        
+        if (response.ok) {
+            const result = await response.json();
+            hideInviteModal();
+            alert(result.message);
+        } else {
+            const error = await response.json();
+            alert(error.detail || 'ユーザーの招待に失敗しました');
+        }
+    } catch (error) {
+        console.error('ユーザー招待エラー:', error);
+        alert('ユーザー招待中にエラーが発生しました');
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = originalText;
+    }
+}
+
+// 招待モーダルのストリーム選択肢を更新
+function populateInviteStreamSelect() {
+    const select = document.getElementById('invite-stream');
+    if (!select || !streams) return;
+    
+    // 既存の選択肢をクリア（最初のオプションは残す）
+    while (select.children.length > 1) {
+        select.removeChild(select.lastChild);
+    }
+    
+    // 管理者権限があるストリームのみ追加
+    streams.forEach(stream => {
+        if (stream.membership && (stream.membership.role === 'stream_admin' || stream.membership.role === 'admin')) {
+            const option = document.createElement('option');
+            option.value = stream.id;
+            option.textContent = stream.name;
+            select.appendChild(option);
+        }
+    });
+}

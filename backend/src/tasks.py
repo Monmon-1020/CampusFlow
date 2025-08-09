@@ -90,8 +90,8 @@ def send_assignment_reminders(self):
                 )
             )
 
-            result = await session.exec(assignments_query)
-            due_assignments = result.all()
+            result = await session.execute(assignments_query)
+            due_assignments = result.scalars().all()
 
             if not due_assignments:
                 print("No assignments due tomorrow")
@@ -108,8 +108,8 @@ def send_assignment_reminders(self):
                     )
                 )
 
-                result = await session.exec(incomplete_logs_query)
-                incomplete_logs = result.all()
+                result = await session.execute(incomplete_logs_query)
+                incomplete_logs = result.scalars().all()
 
                 # Get users who have logs but haven't completed
                 user_ids_with_incomplete = [log.user_id for log in incomplete_logs]
@@ -121,13 +121,13 @@ def send_assignment_reminders(self):
                     .distinct()
                 )
 
-                users_with_logs_result = await session.exec(users_with_logs_query)
-                users_with_logs = users_with_logs_result.all()
+                users_with_logs_result = await session.execute(users_with_logs_query)
+                users_with_logs = users_with_logs_result.scalars().all()
 
                 # Get all students
                 all_students_query = select(User).where(User.role == "student")
-                all_students_result = await session.exec(all_students_query)
-                all_students = all_students_result.all()
+                all_students_result = await session.execute(all_students_query)
+                all_students = all_students_result.scalars().all()
 
                 # Find students without logs
                 users_without_logs = [
@@ -140,8 +140,8 @@ def send_assignment_reminders(self):
                 # Add users with incomplete logs
                 for log in incomplete_logs:
                     user_query = select(User).where(User.id == log.user_id)
-                    user_result = await session.exec(user_query)
-                    user = user_result.first()
+                    user_result = await session.execute(user_query)
+                    user = user_result.scalars().first()
                     if user:
                         users_needing_reminders.append(user)
 
