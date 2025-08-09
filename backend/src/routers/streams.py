@@ -187,17 +187,22 @@ async def get_stream_announcements(
     return response_data
 
 
+from pydantic import BaseModel
+
+class AnnouncementCreateRequest(BaseModel):
+    title: str
+    content: str
+    announcement_type: str = "general"
+    is_urgent: bool = False
+    is_pinned: bool = False
+    tags: Optional[List[str]] = None
+    target_grades: Optional[List[int]] = None
+    target_classes: Optional[List[str]] = None
+
 @router.post("/{stream_id}/announcements")
 async def create_announcement(
     stream_id: str,
-    title: str,
-    content: str,
-    announcement_type: AnnouncementType = AnnouncementType.GENERAL,
-    is_urgent: bool = False,
-    is_pinned: bool = False,
-    tags: Optional[List[str]] = None,
-    target_grades: Optional[List[int]] = None,
-    target_classes: Optional[List[str]] = None,
+    request: AnnouncementCreateRequest,
     current_user: User = Depends(require_stream_role({"stream_admin", "admin"})),
     session: AsyncSession = Depends(get_async_session),
 ):
@@ -214,20 +219,26 @@ async def create_announcement(
     membership = membership_result.scalars().first()
 
     # ピン留めは管理者のみ
-    if is_pinned and membership and membership.role != StreamRole.ADMIN:
-        is_pinned = False
+    if request.is_pinned and membership and membership.role != StreamRole.ADMIN:
+        request.is_pinned = False
+
+    # AnnouncementTypeエナムに変換
+    try:
+        announcement_type_enum = AnnouncementType(request.announcement_type)
+    except ValueError:
+        announcement_type_enum = AnnouncementType.GENERAL
 
     # お知らせを作成
     announcement = Announcement(
-        title=title,
-        content=content,
-        announcement_type=announcement_type,
-        is_urgent=is_urgent,
-        is_pinned=is_pinned,
-        tags=json.dumps(tags) if tags else None,
+        title=request.title,
+        content=request.content,
+        announcement_type=announcement_type_enum,
+        is_urgent=request.is_urgent,
+        is_pinned=request.is_pinned,
+        tags=json.dumps(request.tags) if request.tags else None,
         stream_id=stream_id,
-        target_grades=json.dumps(target_grades) if target_grades else None,
-        target_classes=json.dumps(target_classes) if target_classes else None,
+        target_grades=json.dumps(request.target_grades) if request.target_grades else None,
+        target_classes=json.dumps(request.target_classes) if request.target_classes else None,
         created_by=current_user.id,
     )
 

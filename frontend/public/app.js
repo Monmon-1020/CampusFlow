@@ -189,22 +189,30 @@ function getRoleText(role) {
 // 認証機能
 async function checkAuth() {
     const token = localStorage.getItem('authToken');
+    console.log('🔍 Retrieved token from localStorage:', token ? `${token.substring(0, 50)}...` : 'null');
+    
     if (token) {
         authToken = token;
         // トークンの有効性を確認
         try {
+            console.log('🔍 Sending /api/auth/me request with token');
             const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json'
                 }
             });
+            console.log('🔍 /api/auth/me response status:', response.status);
+            
             if (response.ok) {
                 const user = await response.json();
+                console.log('✅ Auth check successful, user:', user);
                 currentUser = user;
                 localStorage.setItem('currentUser', JSON.stringify(user));
                 return true;
             } else {
+                const errorText = await response.text();
+                console.log('❌ Auth check failed:', response.status, errorText);
                 // トークンが無効な場合、ローカルストレージをクリア
                 console.log('🔓 無効なトークンを検出、ローカルストレージをクリア');
                 localStorage.removeItem('authToken');
@@ -1274,7 +1282,7 @@ async function elevateToStreamAdmin() {
                         fetchStreams();
                         // 現在選択中のストリームがあれば再描画
                         if (selectedStream) {
-                            const updatedStream = streams.find(s => s.id === selectedStream.id);
+                            const updatedStream = streams.find(s => s.id.toString() === selectedStream.id.toString());
                             if (updatedStream) {
                                 selectedStream = updatedStream;
                                 renderStreamAnnouncements();
@@ -1652,7 +1660,7 @@ function renderStreams() {
 
     const streamHTML = streams.map(stream => `
         <div class="p-4 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors"
-             onclick="selectStream(${stream.id})">
+             onclick="selectStream('${stream.id}')">
             <div class="flex items-center justify-between mb-2">
                 <h4 class="font-medium text-gray-900">${escapeHtml(stream.name)}</h4>
                 <span class="px-2 py-1 text-xs rounded-full ${getStreamTypeColor(stream.type)}">
@@ -1694,7 +1702,7 @@ function getStreamTypeLabel(type) {
 // ストリームを選択
 function selectStream(streamId) {
     console.log('📋 ストリーム選択:', streamId);
-    selectedStream = streams.find(s => s.id === streamId);
+    selectedStream = streams.find(s => s.id.toString() === streamId.toString());
     if (selectedStream) {
         console.log('✅ 選択されたストリーム:', selectedStream.name);
         fetchStreamAnnouncements(streamId);
@@ -1780,7 +1788,7 @@ async function elevateForCurrentStream() {
                     selectedStream.membership.role = 'stream_admin';
                     
                     // streams配列内の対応するストリームも更新
-                    const streamIndex = streams.findIndex(s => s.id === selectedStream.id);
+                    const streamIndex = streams.findIndex(s => s.id.toString() === selectedStream.id.toString());
                     if (streamIndex !== -1) {
                         streams[streamIndex].membership.role = 'stream_admin';
                     }
@@ -1889,7 +1897,7 @@ function updateStreamSelection(streamId) {
         card.classList.add('hover:bg-gray-50');
     });
     
-    const selectedIndex = streams.findIndex(s => s.id === streamId);
+    const selectedIndex = streams.findIndex(s => s.id.toString() === streamId.toString());
     if (selectedIndex !== -1) {
         const selectedCard = document.querySelector(`#streams-list > div:nth-child(${selectedIndex + 1})`);
         if (selectedCard) {
@@ -1904,8 +1912,9 @@ async function fetchStreamAnnouncements(streamId) {
     try {
         console.log('📡 ストリームお知らせ取得開始:', streamId);
         
-        // ストリーム別のモックデータを生成
-        const mockAnnouncementsByStream = {
+        if (USE_MOCK_DATA) {
+            // ストリーム別のモックデータを生成
+            const mockAnnouncementsByStream = {
             1: [ // 1年A組
                 {
                     id: 1,
@@ -2008,9 +2017,32 @@ async function fetchStreamAnnouncements(streamId) {
         
         currentStreamAnnouncements = mockAnnouncementsByStream[streamId] || [];
         renderStreamAnnouncements();
+        } else {
+            // 実際のAPIを使用
+            console.log('🔗 実際のAPIでお知らせを取得:', streamId);
+            
+            const headers = {
+                'Authorization': `Bearer ${authToken}`,
+                'Content-Type': 'application/json'
+            };
+            
+            const response = await fetch(`${API_BASE_URL}/api/streams/${streamId}/announcements`, { headers });
+            
+            if (response.ok) {
+                const announcements = await response.json();
+                console.log('✅ お知らせ取得成功:', announcements.length, '件');
+                currentStreamAnnouncements = announcements;
+                renderStreamAnnouncements();
+            } else {
+                console.error('❌ お知らせ取得失敗:', response.status);
+                throw new Error(`お知らせの取得に失敗しました: ${response.status}`);
+            }
+        }
         
     } catch (error) {
         console.error('❌ ストリームお知らせ取得エラー:', error);
+        currentStreamAnnouncements = [];
+        renderStreamAnnouncements();
         showNotification('お知らせの取得に失敗しました', 'error');
     }
 }
@@ -2157,6 +2189,26 @@ function showNewPostModal() {
                             ></textarea>
                         </div>
                         
+                        <div>
+                            <label for="post-type" class="block text-sm font-medium text-gray-700 mb-2">投稿タイプ</label>
+                            <select id="post-type" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                <option value="general">一般のお知らせ</option>
+                                <option value="homework">課題・宿題</option>
+                                <option value="urgent">緊急通知</option>
+                                <option value="event">イベント告知</option>
+                                <option value="reminder">リマインダー</option>
+                            </select>
+                        </div>
+                        
+                        <div id="homework-fields" class="hidden">
+                            <label for="homework-due" class="block text-sm font-medium text-gray-700 mb-2">課題の提出期限</label>
+                            <input 
+                                type="datetime-local" 
+                                id="homework-due" 
+                                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            >
+                        </div>
+                        
                         <div class="flex items-center space-x-4">
                             <label class="flex items-center">
                                 <input type="checkbox" id="post-urgent" class="rounded border-gray-300 text-red-600 focus:ring-red-500">
@@ -2196,6 +2248,18 @@ function showNewPostModal() {
     // モーダルをDOMに追加
     document.body.insertAdjacentHTML('beforeend', modalHTML);
     
+    // 投稿タイプの変更イベントを設定
+    const postTypeSelect = document.getElementById('post-type');
+    const homeworkFields = document.getElementById('homework-fields');
+    
+    postTypeSelect.addEventListener('change', function() {
+        if (this.value === 'homework') {
+            homeworkFields.classList.remove('hidden');
+        } else {
+            homeworkFields.classList.add('hidden');
+        }
+    });
+    
     // フォーム送信イベント
     const form = document.getElementById('post-form');
     form.addEventListener('submit', handlePostSubmit);
@@ -2215,12 +2279,16 @@ async function handlePostSubmit(event) {
     
     const titleInput = document.getElementById('post-title');
     const contentInput = document.getElementById('post-content');
+    const postTypeInput = document.getElementById('post-type');
+    const homeworkDueInput = document.getElementById('homework-due');
     const urgentInput = document.getElementById('post-urgent');
     const pinnedInput = document.getElementById('post-pinned');
     const resultDiv = document.getElementById('post-result');
     
     const title = titleInput.value.trim();
     const content = contentInput.value.trim();
+    const postType = postTypeInput.value;
+    const homeworkDue = homeworkDueInput.value;
     const isUrgent = urgentInput.checked;
     const isPinned = pinnedInput.checked;
     
@@ -2270,14 +2338,38 @@ async function handlePostSubmit(event) {
             'Content-Type': 'application/json'
         };
         
+        // 課題の場合、まず課題を作成
+        if (postType === 'homework' && homeworkDue) {
+            try {
+                const assignmentResponse = await fetch(`${API_BASE_URL}/api/assignments`, {
+                    method: 'POST',
+                    headers,
+                    body: JSON.stringify({
+                        title: title,
+                        description: content,
+                        subject: selectedStream.name,
+                        due_at: new Date(homeworkDue).toISOString()
+                    })
+                });
+                
+                if (assignmentResponse.ok) {
+                    console.log('✅ 課題作成成功');
+                } else {
+                    console.warn('⚠️ 課題作成失敗、お知らせのみ投稿');
+                }
+            } catch (error) {
+                console.warn('⚠️ 課題作成エラー:', error);
+            }
+        }
+
         const response = await fetch(`${API_BASE_URL}/api/streams/${selectedStream.id}/announcements`, {
             method: 'POST',
             headers,
             body: JSON.stringify({
                 title: title,
                 content: content,
-                announcement_type: isUrgent ? 'urgent' : 'general',
-                is_urgent: isUrgent,
+                announcement_type: postType,
+                is_urgent: isUrgent || postType === 'urgent',
                 is_pinned: isPinned
             })
         });
