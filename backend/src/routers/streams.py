@@ -189,6 +189,7 @@ async def get_stream_announcements(
 
 from pydantic import BaseModel
 
+
 class AnnouncementCreateRequest(BaseModel):
     title: str
     content: str
@@ -198,6 +199,7 @@ class AnnouncementCreateRequest(BaseModel):
     tags: Optional[List[str]] = None
     target_grades: Optional[List[int]] = None
     target_classes: Optional[List[str]] = None
+
 
 @router.post("/{stream_id}/announcements")
 async def create_announcement(
@@ -237,8 +239,12 @@ async def create_announcement(
         is_pinned=request.is_pinned,
         tags=json.dumps(request.tags) if request.tags else None,
         stream_id=stream_id,
-        target_grades=json.dumps(request.target_grades) if request.target_grades else None,
-        target_classes=json.dumps(request.target_classes) if request.target_classes else None,
+        target_grades=json.dumps(request.target_grades)
+        if request.target_grades
+        else None,
+        target_classes=json.dumps(request.target_classes)
+        if request.target_classes
+        else None,
         created_by=current_user.id,
     )
 
@@ -581,39 +587,36 @@ async def invite_user_to_stream(
     session: AsyncSession = Depends(get_async_session),
 ):
     """ストリームにユーザーを招待（ストリーム管理者以上のみ）"""
-    
+
     # ストリーム存在確認
     stream_statement = select(Stream).where(Stream.id == stream_id)
     stream_result = await session.execute(stream_statement)
     stream = stream_result.scalars().first()
-    
+
     if not stream:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="ストリームが見つかりません"
+            status_code=status.HTTP_404_NOT_FOUND, detail="ストリームが見つかりません"
         )
-    
+
     # ユーザー検索（メールアドレスで）
     user_statement = select(User).where(User.email == email)
     user_result = await session.execute(user_statement)
     user = user_result.scalars().first()
-    
+
     if not user:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="指定されたメールアドレスのユーザーが見つかりません"
+            status_code=status.HTTP_404_NOT_FOUND, detail="指定されたメールアドレスのユーザーが見つかりません"
         )
-    
+
     # 既存のメンバーシップをチェック
     existing_membership_statement = select(StreamMembership).where(
         and_(
-            StreamMembership.user_id == user.id,
-            StreamMembership.stream_id == stream_id
+            StreamMembership.user_id == user.id, StreamMembership.stream_id == stream_id
         )
     )
     existing_result = await session.execute(existing_membership_statement)
     existing_membership = existing_result.scalars().first()
-    
+
     if existing_membership:
         return {
             "message": f"{user.name}さんは既にこのストリームのメンバーです",
@@ -621,33 +624,21 @@ async def invite_user_to_stream(
                 "id": user.id,
                 "name": user.name,
                 "email": user.email,
-                "role": existing_membership.role
-            }
+                "role": existing_membership.role,
+            },
         }
-    
+
     # 新しいメンバーシップを作成
-    membership = StreamMembership(
-        user_id=user.id,
-        stream_id=stream_id,
-        role=role
-    )
-    
+    membership = StreamMembership(user_id=user.id, stream_id=stream_id, role=role)
+
     session.add(membership)
     await session.commit()
     await session.refresh(membership)
-    
+
     return {
         "message": f"{user.name}さんを{stream.name}に招待しました",
-        "user": {
-            "id": user.id,
-            "name": user.name,
-            "email": user.email,
-            "role": role
-        },
-        "stream": {
-            "id": stream.id,
-            "name": stream.name
-        }
+        "user": {"id": user.id, "name": user.name, "email": user.email, "role": role},
+        "stream": {"id": stream.id, "name": stream.name},
     }
 
 
@@ -658,44 +649,45 @@ async def get_stream_members(
     session: AsyncSession = Depends(get_async_session),
 ):
     """ストリームのメンバー一覧を取得"""
-    
+
     # ユーザーがこのストリームのメンバーかチェック
     user_membership_statement = select(StreamMembership).where(
         and_(
             StreamMembership.user_id == current_user.id,
-            StreamMembership.stream_id == stream_id
+            StreamMembership.stream_id == stream_id,
         )
     )
     user_membership_result = await session.execute(user_membership_statement)
     user_membership = user_membership_result.scalars().first()
-    
+
     if not user_membership:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="このストリームへのアクセス権限がありません"
+            status_code=status.HTTP_403_FORBIDDEN, detail="このストリームへのアクセス権限がありません"
         )
-    
+
     # ストリームのすべてのメンバーシップを取得
     memberships_statement = select(StreamMembership).where(
         StreamMembership.stream_id == stream_id
     )
     memberships_result = await session.execute(memberships_statement)
     memberships = memberships_result.scalars().all()
-    
+
     members = []
     for membership in memberships:
         # ユーザー情報を取得
         user_statement = select(User).where(User.id == membership.user_id)
         user_result = await session.execute(user_statement)
         user = user_result.scalars().first()
-        
+
         if user:
-            members.append({
-                "id": user.id,
-                "name": user.name,
-                "email": user.email,
-                "role": membership.role,
-                "joined_at": membership.joined_at
-            })
-    
+            members.append(
+                {
+                    "id": user.id,
+                    "name": user.name,
+                    "email": user.email,
+                    "role": membership.role,
+                    "joined_at": membership.joined_at,
+                }
+            )
+
     return members

@@ -12,9 +12,7 @@ const API_BASE_URL = 'http://localhost:8000'; // バックエンドAPI URL
 const USE_MOCK_DATA = false; // フロントエンドのみの場合は true に設定
 
 // デバッグ情報
-console.log('⚙️ 設定情報:');
-console.log('  API_BASE_URL:', API_BASE_URL);
-console.log('  USE_MOCK_DATA:', USE_MOCK_DATA);
+console.log('⚙️ CampusFlow starting...');
 
 // ユーティリティ関数
 function escapeHtml(text) {
@@ -189,20 +187,17 @@ function getRoleText(role) {
 // 認証機能
 async function checkAuth() {
     const token = localStorage.getItem('authToken');
-    console.log('🔍 Retrieved token from localStorage:', token ? `${token.substring(0, 50)}...` : 'null');
     
     if (token) {
         authToken = token;
         // トークンの有効性を確認
         try {
-            console.log('🔍 Sending /api/auth/me request with token');
             const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json'
                 }
             });
-            console.log('🔍 /api/auth/me response status:', response.status);
             
             if (response.ok) {
                 const user = await response.json();
@@ -235,7 +230,6 @@ async function checkAuth() {
 }
 
 function showLoginPage() {
-    console.log('🔐 ログインページ表示開始');
     
     const loginPage = document.getElementById('login-page');
     const mainContent = document.getElementById('main-content');
@@ -244,7 +238,6 @@ function showLoginPage() {
     if (loginPage) {
         loginPage.style.display = 'flex';
         loginPage.classList.remove('hidden');
-        console.log('✅ ログインページを表示');
     } else {
         console.error('❌ ログインページ要素が見つかりません');
     }
@@ -252,7 +245,6 @@ function showLoginPage() {
     if (mainContent) {
         mainContent.style.display = 'none';
         mainContent.classList.add('hidden');
-        console.log('✅ メインコンテンツを非表示');
     } else {
         console.error('❌ メインコンテンツ要素が見つかりません');
     }
@@ -260,14 +252,12 @@ function showLoginPage() {
     if (mainNav) {
         mainNav.style.display = 'none';
         mainNav.classList.add('hidden');
-        console.log('✅ ナビゲーションを非表示');
     } else {
         console.error('❌ ナビゲーション要素が見つかりません');
     }
 }
 
 function showMainContent() {
-    console.log('🏠 メインコンテンツ表示開始');
     
     const loginPage = document.getElementById('login-page');
     const mainContent = document.getElementById('main-content');
@@ -276,7 +266,6 @@ function showMainContent() {
     if (loginPage) {
         loginPage.style.display = 'none';
         loginPage.classList.add('hidden');
-        console.log('✅ ログインページを非表示');
     } else {
         console.error('❌ ログインページ要素が見つかりません');
     }
@@ -284,7 +273,6 @@ function showMainContent() {
     if (mainContent) {
         mainContent.style.display = 'block';
         mainContent.classList.remove('hidden');
-        console.log('✅ メインコンテンツを表示');
     } else {
         console.error('❌ メインコンテンツ要素が見つかりません');
     }
@@ -292,7 +280,6 @@ function showMainContent() {
     if (mainNav) {
         mainNav.style.display = 'block';
         mainNav.classList.remove('hidden');
-        console.log('✅ ナビゲーションを表示');
     } else {
         console.error('❌ ナビゲーション要素が見つかりません');
     }
@@ -300,12 +287,10 @@ function showMainContent() {
 
 async function loginWithGoogle() {
     try {
-        console.log('🔐 Google ログイン開始');
         document.getElementById('login-loading').classList.remove('hidden');
         document.getElementById('login-error').classList.add('hidden');
         
         if (USE_MOCK_DATA) {
-            console.log('🧪 モックログインモード');
             // モックログイン
             const mockToken = 'mock_jwt_token_' + Date.now();
             const mockUser = {
@@ -316,7 +301,6 @@ async function loginWithGoogle() {
                 picture_url: null
             };
             
-            console.log('💾 認証情報保存:', mockUser);
             localStorage.setItem('authToken', mockToken);
             localStorage.setItem('currentUser', JSON.stringify(mockUser));
             authToken = mockToken;
@@ -324,13 +308,11 @@ async function loginWithGoogle() {
             
             // モックデータの場合の共通処理
             setTimeout(() => {
-                console.log('✅ モックログイン完了');
                 document.getElementById('login-loading').classList.add('hidden');
                 showMainContent();
                 initializeApp();
             }, 1000);
         } else {
-            console.log('🔗 Google OAuth認証開始');
             // Google OAuth認証URLを取得
             const response = await fetch(`${API_BASE_URL}/api/auth/google/login`, {
                 method: 'GET',
@@ -344,7 +326,6 @@ async function loginWithGoogle() {
             }
             
             const result = await response.json();
-            console.log('🔗 Google認証URLにリダイレクト:', result.url);
             
             // Googleの認証ページにリダイレクト
             window.location.href = result.url;
@@ -361,12 +342,10 @@ async function loginWithGoogle() {
 // Super Admin ログイン機能
 async function loginAsSuperAdmin() {
     try {
-        console.log('🔐 Super Admin ログイン開始');
         document.getElementById('login-loading').classList.remove('hidden');
         document.getElementById('login-error').classList.add('hidden');
         
         if (USE_MOCK_DATA) {
-            console.log('🧪 モック Super Admin ログインモード');
             // モック Super Admin ユーザー
             const mockToken = 'mock_super_admin_token_' + Date.now();
             const mockUser = {
@@ -377,14 +356,12 @@ async function loginAsSuperAdmin() {
                 picture_url: null
             };
             
-            console.log('💾 Super Admin 認証情報保存:', mockUser);
             localStorage.setItem('authToken', mockToken);
             localStorage.setItem('currentUser', JSON.stringify(mockUser));
             authToken = mockToken;
             currentUser = mockUser;
             
             setTimeout(() => {
-                console.log('✅ モック Super Admin ログイン完了');
                 document.getElementById('login-loading').classList.add('hidden');
                 showMainContent();
                 initializeApp();
@@ -404,7 +381,6 @@ async function loginAsSuperAdmin() {
             }
             
             const result = await response.json();
-            console.log('✅ Super Admin ログイン成功:', result.user);
             
             // 認証情報を保存
             localStorage.setItem('authToken', result.access_token);
@@ -476,7 +452,6 @@ async function fetchUser() {
         if (!USE_MOCK_DATA) {
             const savedUser = localStorage.getItem('currentUser');
             if (savedUser) {
-                console.log('💾 ローカルストレージからユーザー情報を復元');
                 currentUser = JSON.parse(savedUser);
                 updateUserInfo();
                 return;
@@ -618,11 +593,8 @@ async function fetchEvents() {
 }
 
 async function fetchStreams() {
-    console.log('📡 fetchStreams開始');
     try {
-        console.log('🔍 条件確認: USE_MOCK_DATA =', USE_MOCK_DATA, ', authToken =', authToken ? 'あり' : 'なし');
         if (USE_MOCK_DATA || !authToken) {
-            console.log('📋 モックデータを使用します');
             
             // 現在のユーザーロールを確認（権限取得後の場合）
             const userRole = currentUser && currentUser.role === 'stream_admin' ? 'stream_admin' : 'student';
@@ -694,7 +666,6 @@ async function fetchStreams() {
             }
         }
         
-        console.log('📋 ストリーム取得完了:', streams.length, '件のストリーム');
         
         // ストリームページが表示中の場合は再描画
         if (document.getElementById('streams') && !document.getElementById('streams').classList.contains('hidden')) {
@@ -1365,7 +1336,6 @@ function showProfile() {
     const profileEl = document.getElementById('profile');
     if (profileEl) {
         profileEl.classList.remove('hidden');
-        console.log('✅ プロフィールページ要素表示完了');
     } else {
         console.error('❌ プロフィールページ要素が見つかりません');
     }
@@ -1553,12 +1523,10 @@ function showProfileSaveResult(type, message) {
 
 // ナビゲーション
 function showDashboard() {
-    console.log('🏠 ダッシュボード表示処理開始');
     document.querySelectorAll('.page-content').forEach(el => el.classList.add('hidden'));
     const dashboardEl = document.getElementById('dashboard');
     if (dashboardEl) {
         dashboardEl.classList.remove('hidden');
-        console.log('✅ ダッシュボード要素表示完了');
     } else {
         console.error('❌ ダッシュボード要素が見つかりません');
     }
@@ -1574,7 +1542,6 @@ function showAssignments() {
     const assignmentsEl = document.getElementById('assignments');
     if (assignmentsEl) {
         assignmentsEl.classList.remove('hidden');
-        console.log('✅ 課題ページ要素表示完了');
     } else {
         console.error('❌ 課題ページ要素が見つかりません');
     }
@@ -1589,7 +1556,6 @@ function showEvents() {
     const eventsEl = document.getElementById('events');
     if (eventsEl) {
         eventsEl.classList.remove('hidden');
-        console.log('✅ イベントページ要素表示完了');
     } else {
         console.error('❌ イベントページ要素が見つかりません');
     }
@@ -1604,7 +1570,6 @@ function showStreams() {
     const streamsEl = document.getElementById('streams');
     if (streamsEl) {
         streamsEl.classList.remove('hidden');
-        console.log('✅ ストリームページ要素表示完了');
     } else {
         console.error('❌ ストリームページ要素が見つかりません');
     }
@@ -1613,15 +1578,11 @@ function showStreams() {
     updateStreamAdminControls();
     
     // ストリームが読み込まれていない場合は取得してから表示
-    console.log('🔍 ストリームデータ確認:', streams ? streams.length : 'null', '件');
     if (!streams || streams.length === 0) {
-        console.log('📋 ストリームデータが未取得、取得中...');
         fetchStreams().then(() => {
-            console.log('📋 fetchStreams完了、renderStreams呼び出し');
             renderStreams();
         });
     } else {
-        console.log('📋 既存ストリームデータを使用、renderStreams呼び出し');
         renderStreams();
     }
 }
@@ -1638,7 +1599,6 @@ function renderStreams() {
     console.log('✅ streams-list要素見つかりました');
 
     if (!streams || streams.length === 0) {
-        console.log('📋 ストリームデータが空です');
         streamsContainer.innerHTML = `
             <div class="text-center py-8 text-gray-500">
                 <p>まだ参加しているストリームがありません</p>
@@ -1665,7 +1625,6 @@ function renderStreams() {
     `).join('');
 
     streamsContainer.innerHTML = streamHTML;
-    console.log('✅ ストリーム一覧表示完了:', streams.length, '件');
 }
 
 // ストリームタイプの色を取得
@@ -1690,7 +1649,6 @@ function getStreamTypeLabel(type) {
 
 // ストリームを選択
 function selectStream(streamId) {
-    console.log('📋 ストリーム選択:', streamId);
     selectedStream = streams.find(s => s.id.toString() === streamId.toString());
     if (selectedStream) {
         console.log('✅ 選択されたストリーム:', selectedStream.name);
@@ -1899,7 +1857,6 @@ function updateStreamSelection(streamId) {
 // ストリームのお知らせを取得
 async function fetchStreamAnnouncements(streamId) {
     try {
-        console.log('📡 ストリームお知らせ取得開始:', streamId);
         
         if (USE_MOCK_DATA) {
             // ストリーム別のモックデータを生成
@@ -2019,7 +1976,6 @@ async function fetchStreamAnnouncements(streamId) {
             
             if (response.ok) {
                 const announcements = await response.json();
-                console.log('✅ お知らせ取得成功:', announcements.length, '件');
                 currentStreamAnnouncements = announcements;
                 renderStreamAnnouncements();
             } else {
@@ -2048,7 +2004,6 @@ function renderStreamAnnouncements() {
     const canPost = selectedStream && selectedStream.membership && 
         (selectedStream.membership.role === 'stream_admin' || selectedStream.membership.role === 'admin');
     
-    console.log('🔍 投稿権限チェック:');
     console.log('  selectedStream:', selectedStream?.name);
     console.log('  membership role:', selectedStream?.membership?.role);
     console.log('  canPost:', canPost);
@@ -2131,7 +2086,6 @@ function renderStreamAnnouncements() {
     `).join('');
 
     announcementsContainer.innerHTML = postButton + announcementsHTML;
-    console.log('✅ ストリームお知らせ表示完了:', currentStreamAnnouncements.length, '件');
 }
 
 // 新規投稿モーダル
@@ -2342,7 +2296,6 @@ async function handlePostSubmit(event) {
                 });
                 
                 if (assignmentResponse.ok) {
-                    console.log('✅ 課題作成成功');
                 } else {
                     console.warn('⚠️ 課題作成失敗、お知らせのみ投稿');
                 }
@@ -2422,7 +2375,6 @@ async function searchAnnouncements() {
     }
 
     const query = searchInput.value.trim();
-    console.log('🔍 ストリーム横断検索:', query);
 
     const announcementsContainer = document.getElementById('stream-announcements');
 
@@ -2459,7 +2411,6 @@ async function searchAnnouncements() {
             }
 
             const searchResults = await response.json();
-            console.log('🔍 検索結果:', searchResults.length, '件');
             renderSearchResults(searchResults, query);
         }
     } catch (error) {
@@ -2574,14 +2525,12 @@ function generateMockSearchResults(query) {
         }
     ];
 
-    console.log('🔍 検索クエリ:', `"${query}"`);
     console.log('📝 全モックデータ:', mockResults);
     
     const filteredResults = mockResults.filter(result => {
         const titleMatch = result.title.toLowerCase().includes(query.toLowerCase());
         const contentMatch = result.content.toLowerCase().includes(query.toLowerCase());
         
-        console.log(`📋 チェック中 "${result.title}":`, {
             titleMatch,
             contentMatch,
             match: titleMatch || contentMatch
@@ -2590,7 +2539,6 @@ function generateMockSearchResults(query) {
         return titleMatch || contentMatch;
     });
     
-    console.log('✅ フィルタリング結果:', filteredResults);
     return filteredResults;
 }
 
@@ -2638,10 +2586,8 @@ function debugStreams() {
 }
 
 function forceShowStreams() {
-    console.log('🔧 強制ストリーム表示開始');
     streams = []; // 一度クリア
     fetchStreams().then(() => {
-        console.log('🔧 強制取得完了、表示開始');
         showStreams();
     });
 }
@@ -2716,44 +2662,31 @@ async function initializeApp() {
     try {
         console.log('👤 ユーザー情報取得中...');
         await fetchUser();
-        console.log('✅ ユーザー情報取得完了:', currentUser);
         
         console.log('📝 課題取得中...');
         await fetchAssignments();
-        console.log('✅ 課題取得完了:', assignments.length, '件');
         
         console.log('📅 イベント取得中...');
         await fetchEvents();
-        console.log('✅ イベント取得完了:', events.length, '件');
         
-        console.log('📋 ストリーム取得中...');
         await fetchStreams();
-        console.log('✅ ストリーム取得完了:', streams.length, '件');
-        console.log('📋 取得したストリーム:', streams.map(s => s.name));
         
-        console.log('🏠 ダッシュボード表示開始');
         showDashboard();
         
         console.log('🔧 ユーザー情報UI更新');
         updateUserInfo();
         
-        console.log('✅ アプリ初期化完了');
     } catch (error) {
         console.error('❌ アプリ初期化エラー:', error);
     }
 }
 
 // 初期化
-console.log('📁 app.js loaded at:', new Date().toISOString());
-console.log('📍 Current URL at load:', window.location.href);
-
 document.addEventListener('DOMContentLoaded', async () => {
-    console.log('🚀 DOMContentLoaded event fired');
     console.log('🚀 アプリケーション開始');
     
     // ナビゲーションのイベントリスナーを設定
     const navLinks = document.querySelectorAll('.nav-link');
-    console.log('📋 ナビゲーションリンク数:', navLinks.length);
     
     navLinks.forEach((link) => {
         link.addEventListener('click', (e) => {
@@ -2769,16 +2702,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     // 認証チェック
-    console.log('🔐 認証チェック開始');
     
-    // まずURLパスを確認
-    const currentPath = window.location.pathname;
+    // URLパラメータを確認  
     const urlSearchParams = new URLSearchParams(window.location.search);
     
-    console.log('🔍 URL検証:');
-    console.log('  currentPath:', currentPath);
-    console.log('  USE_MOCK_DATA:', USE_MOCK_DATA);
-    console.log('  has code:', urlSearchParams.has('code'));
     
     // Google OAuth コールバック処理（リダイレクト後のパラメータ検出）
     const isGoogleCallback = urlSearchParams.get('callback') === 'google';
@@ -2791,7 +2718,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             
             try {
                 const callbackUrl = `${API_BASE_URL}/api/auth/google/callback?code=${encodeURIComponent(code)}`;
-                console.log('📡 Calling callback URL:', callbackUrl);
                 
                 const response = await fetch(callbackUrl, {
                     method: 'GET',
@@ -2818,7 +2744,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                     // URLをクリーンアップ
                     window.history.replaceState({}, document.title, '/');
                     
-                    console.log('✅ OAuth認証成功 - メインコンテンツ表示');
                     showMainContent();
                     await initializeApp();
                     return;
@@ -2858,7 +2783,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         // URLをクリーンアップ
         window.history.replaceState({}, document.title, window.location.pathname);
         
-        console.log('✅ OAuth認証成功 - メインコンテンツ表示');
         showMainContent();
         await initializeApp();
         return; // 以降の処理をスキップ
@@ -2872,7 +2796,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         // OAuthコールバック処理は後で実行されるので、ここでは何もしない
         showLoginPage(); // ローディング表示のため
     } else if (await checkAuth()) {
-        console.log('✅ 既存認証済み - メインコンテンツ表示');
         showMainContent();
         await initializeApp();
     } else {
@@ -2891,7 +2814,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             document.getElementById('login-error')?.classList.add('hidden');
             
             const callbackUrl = `${API_BASE_URL}/api/auth/google/callback?code=${encodeURIComponent(code)}`;
-            console.log('📡 Calling callback URL:', callbackUrl);
             
             const response = await fetch(callbackUrl, {
                 method: 'GET',
@@ -2903,8 +2825,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
             });
             
-            console.log('📡 Response status:', response.status);
-            console.log('📡 Response headers:', Object.fromEntries(response.headers.entries()));
             
             if (!response.ok) {
                 const errorText = await response.text();
@@ -2921,7 +2841,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
             
             if (data.access_token && data.user) {
-                console.log('💾 Storing auth data...');
                 localStorage.setItem('authToken', data.access_token);
                 localStorage.setItem('currentUser', JSON.stringify(data.user));
                 authToken = data.access_token;
@@ -2931,7 +2850,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 console.log('🧹 Cleaning up URL...');
                 window.history.replaceState({}, document.title, window.location.pathname);
                 
-                console.log('🏠 Showing main content...');
                 showMainContent();
                 console.log('🚀 Initializing app...');
                 await initializeApp();

@@ -178,6 +178,7 @@ async def super_admin_login(session: AsyncSession = Depends(get_async_session)):
     if not user:
         # super_adminユーザーが存在しない場合は作成
         from ..models import UserRole
+
         user = User(
             email="super_admin@campusflow.com",
             name="Super Administrator",

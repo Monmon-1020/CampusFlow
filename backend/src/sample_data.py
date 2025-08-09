@@ -7,7 +7,16 @@ from typing import List
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
-from .models import Assignment, AssignmentLog, Event, User, Stream, StreamMembership, StreamRole, StreamType
+from .models import (
+    Assignment,
+    AssignmentLog,
+    Event,
+    Stream,
+    StreamMembership,
+    StreamRole,
+    StreamType,
+    User,
+)
 
 
 async def create_sample_assignments_for_user(
@@ -143,46 +152,50 @@ async def create_sample_events_for_user(
     return sample_events
 
 
-async def ensure_user_stream_memberships(session: AsyncSession, user: User) -> List[StreamMembership]:
+async def ensure_user_stream_memberships(
+    session: AsyncSession, user: User
+) -> List[StreamMembership]:
     """新規ユーザーを既存の主要ストリームに自動参加させる"""
-    
+
     # 既存のメンバーシップをチェック
-    existing_statement = select(StreamMembership).where(StreamMembership.user_id == user.id)
+    existing_statement = select(StreamMembership).where(
+        StreamMembership.user_id == user.id
+    )
     existing_result = await session.execute(existing_statement)
     existing_memberships = existing_result.scalars().all()
-    
+
     if existing_memberships:
         return existing_memberships  # 既にメンバーシップがある場合はそのまま返す
-    
+
     # 参加させたいデフォルトストリーム名
     default_stream_names = ["1年A組", "数学科", "全校"]
-    
+
     new_memberships = []
-    
+
     for stream_name in default_stream_names:
         # ストリームを検索
         stream_statement = select(Stream).where(Stream.name == stream_name)
         stream_result = await session.execute(stream_statement)
         stream = stream_result.scalars().first()
-        
+
         if stream:
             # メンバーシップを作成
             membership = StreamMembership(
                 user_id=user.id,
                 stream_id=stream.id,
                 role=StreamRole.STUDENT,
-                joined_at=datetime.utcnow()
+                joined_at=datetime.utcnow(),
             )
             session.add(membership)
             new_memberships.append(membership)
-    
+
     # 変更をコミット
     await session.commit()
-    
+
     # 作成されたメンバーシップを更新
     for membership in new_memberships:
         await session.refresh(membership)
-    
+
     return new_memberships
 
 
@@ -194,7 +207,7 @@ async def ensure_user_has_sample_data(session: AsyncSession, user: User):
 
     # イベントをチェックして、必要に応じて作成
     events = await create_sample_events_for_user(session, user)
-    
+
     # 既存のストリームに自動参加させる
     stream_memberships = await ensure_user_stream_memberships(session, user)
 
