@@ -144,6 +144,14 @@ const server = http.createServer((req, res) => {
     return;
   }
   
+  // Handle OAuth callback by redirecting to root with query params
+  if (url.pathname === '/auth/google/callback') {
+    const callbackUrl = `/?callback=google&${url.search.substring(1)}`;
+    res.writeHead(302, { 'Location': callbackUrl });
+    res.end();
+    return;
+  }
+  
   // Static files
   let filePath = path.join(__dirname, 'public', url.pathname === '/' ? 'index.html' : url.pathname);
   

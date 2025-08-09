@@ -74,7 +74,7 @@ class AuthManager:
         return authorization_url
 
     async def exchange_code_for_token(self, code: str):
-        token = await self.google_client.fetch_access_token(
+        token = await self.google_client.fetch_token(
             "https://oauth2.googleapis.com/token",
             code=code,
             redirect_uri=GOOGLE_REDIRECT_URI,

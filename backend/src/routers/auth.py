@@ -69,8 +69,7 @@ async def google_callback(
         )
         refresh_token = auth_manager.create_refresh_token(data={"sub": user.id})
 
-        # In production, you would redirect to frontend with tokens
-        # For now, return tokens directly
+        # Return JSON response for AJAX call from frontend
         return {
             "access_token": access_token,
             "refresh_token": refresh_token,

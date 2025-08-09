@@ -330,35 +330,24 @@ async function loginWithGoogle() {
                 initializeApp();
             }, 1000);
         } else {
-            console.log('🔗 開発用APIログイン（Google OAuth設定待ち）');
-            // 開発用ログイン API呼び出し
-            const response = await fetch(`${API_BASE_URL}/api/auth/dev/login`, {
-                method: 'POST',
+            console.log('🔗 Google OAuth認証開始');
+            // Google OAuth認証URLを取得
+            const response = await fetch(`${API_BASE_URL}/api/auth/google/login`, {
+                method: 'GET',
                 headers: {
                     'Content-Type': 'application/json'
                 }
             });
             
             if (!response.ok) {
-                throw new Error(`ログイン失敗: ${response.status} ${response.statusText}`);
+                throw new Error(`OAuth URL取得失敗: ${response.status} ${response.statusText}`);
             }
             
             const result = await response.json();
-            console.log('✅ ログイン成功:', result.user);
+            console.log('🔗 Google認証URLにリダイレクト:', result.url);
             
-            // 認証情報を保存
-            localStorage.setItem('authToken', result.access_token);
-            localStorage.setItem('currentUser', JSON.stringify(result.user));
-            authToken = result.access_token;
-            currentUser = result.user;
-            
-            // 実APIログインの場合の共通処理
-            setTimeout(() => {
-                console.log('✅ APIログイン完了');
-                document.getElementById('login-loading').classList.add('hidden');
-                showMainContent();
-                initializeApp();
-            }, 1000);
+            // Googleの認証ページにリダイレクト
+            window.location.href = result.url;
         }
         
     } catch (error) {
@@ -2755,7 +2744,11 @@ async function initializeApp() {
 }
 
 // 初期化
+console.log('📁 app.js loaded at:', new Date().toISOString());
+console.log('📍 Current URL at load:', window.location.href);
+
 document.addEventListener('DOMContentLoaded', async () => {
+    console.log('🚀 DOMContentLoaded event fired');
     console.log('🚀 アプリケーション開始');
     
     // ナビゲーションのイベントリスナーを設定
@@ -2778,8 +2771,100 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 認証チェック
     console.log('🔐 認証チェック開始');
     
-    // まずURLにOAuthコードがあるかチェック
+    // まずURLパスを確認
+    const currentPath = window.location.pathname;
     const urlSearchParams = new URLSearchParams(window.location.search);
+    
+    console.log('🔍 URL検証:');
+    console.log('  currentPath:', currentPath);
+    console.log('  USE_MOCK_DATA:', USE_MOCK_DATA);
+    console.log('  has code:', urlSearchParams.has('code'));
+    
+    // Google OAuth コールバック処理（リダイレクト後のパラメータ検出）
+    const isGoogleCallback = urlSearchParams.get('callback') === 'google';
+    if (isGoogleCallback && !USE_MOCK_DATA) {
+        const code = urlSearchParams.get('code');
+        if (code) {
+            console.log('🔐 Google OAuth callback detected');
+            document.getElementById('login-loading')?.classList.remove('hidden');
+            document.getElementById('login-error')?.classList.add('hidden');
+            
+            try {
+                const callbackUrl = `${API_BASE_URL}/api/auth/google/callback?code=${encodeURIComponent(code)}`;
+                console.log('📡 Calling callback URL:', callbackUrl);
+                
+                const response = await fetch(callbackUrl, {
+                    method: 'GET',
+                    mode: 'cors',
+                    credentials: 'include',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json',
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+                }
+                
+                const data = await response.json();
+                
+                if (data.access_token && data.user) {
+                    localStorage.setItem('authToken', data.access_token);
+                    localStorage.setItem('currentUser', JSON.stringify(data.user));
+                    authToken = data.access_token;
+                    currentUser = data.user;
+                    
+                    // URLをクリーンアップ
+                    window.history.replaceState({}, document.title, '/');
+                    
+                    console.log('✅ OAuth認証成功 - メインコンテンツ表示');
+                    showMainContent();
+                    await initializeApp();
+                    return;
+                } else {
+                    throw new Error('Invalid response format');
+                }
+            } catch (error) {
+                console.error('OAuth callback error:', error);
+                document.getElementById('login-loading')?.classList.add('hidden');
+                document.getElementById('login-error')?.classList.remove('hidden');
+                showLoginPage();
+                return;
+            }
+        }
+    }
+    
+    // URLにOAuthトークンがあるかチェック（バックアップ方式）
+    const accessToken = urlSearchParams.get('access_token');
+    
+    if (accessToken && !USE_MOCK_DATA) {
+        console.log('🔗 OAuth token received from redirect');
+        // URLパラメータからユーザー情報を取得
+        const user = {
+            id: urlSearchParams.get('user_id'),
+            name: urlSearchParams.get('user_name'),
+            email: urlSearchParams.get('user_email'),
+            role: urlSearchParams.get('user_role'),
+            picture_url: urlSearchParams.get('user_picture') || null
+        };
+        
+        // 認証情報を保存
+        localStorage.setItem('authToken', accessToken);
+        localStorage.setItem('currentUser', JSON.stringify(user));
+        authToken = accessToken;
+        currentUser = user;
+        
+        // URLをクリーンアップ
+        window.history.replaceState({}, document.title, window.location.pathname);
+        
+        console.log('✅ OAuth認証成功 - メインコンテンツ表示');
+        showMainContent();
+        await initializeApp();
+        return; // 以降の処理をスキップ
+    }
+    
+    // OAuthコードがあるかチェック（古い方式、後方互換性のため保持）
     const hasOAuthCode = urlSearchParams.has('code') && !USE_MOCK_DATA;
     
     if (hasOAuthCode) {
