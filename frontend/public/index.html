@@ -38,6 +38,9 @@
                         <a href="#" class="nav-link border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium" data-tab="streams">
                             ストリーム
                         </a>
+                        <a href="#" class="nav-link border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium" data-tab="lostItems">
+                            忘れ物掲示板
+                        </a>
                         <a href="#" class="nav-link border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium" data-tab="profile">
                             プロフィール
                         </a>
@@ -558,6 +561,99 @@
                             <div class="text-center py-8">
                                 <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
                                 <p class="mt-2 text-gray-500">読み込み中...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- 忘れ物掲示板ページ -->
+        <div id="lostItems" class="page-content hidden">
+            <div class="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+                <div class="px-4 py-6 sm:px-0">
+                    <div class="mb-8">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <h1 class="text-3xl font-bold text-gray-900">📋 忘れ物掲示板</h1>
+                                <p class="mt-2 text-gray-600">
+                                    忘れ物・落とし物の情報を確認できます
+                                </p>
+                            </div>
+                            <div class="flex gap-3">
+                                <!-- 教師のみ表示：忘れ物投稿ボタン -->
+                                <button id="create-lost-item-btn" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors" onclick="showLostItemForm()">
+                                    ➕ 忘れ物を投稿
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 忘れ物作成フォーム -->
+                    <div id="lost-item-form" class="bg-white p-6 rounded-lg shadow-sm mb-6 hidden">
+                        <h3 class="text-lg font-medium text-gray-900 mb-4">忘れ物情報を投稿</h3>
+                        <form id="new-lost-item-form">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">タイトル*</label>
+                                    <input type="text" name="title" required class="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="例：黒い水筒">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">カテゴリ</label>
+                                    <select name="category" class="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                        <option value="">選択してください</option>
+                                        <option value="文房具">文房具</option>
+                                        <option value="教科書・参考書">教科書・参考書</option>
+                                        <option value="衣類">衣類</option>
+                                        <option value="水筒・お弁当箱">水筒・お弁当箱</option>
+                                        <option value="体操着">体操着</option>
+                                        <option value="上履き">上履き</option>
+                                        <option value="傘">傘</option>
+                                        <option value="鍵">鍵</option>
+                                        <option value="その他">その他</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="mb-4">
+                                <label class="block text-sm font-medium text-gray-700 mb-2">詳細説明*</label>
+                                <textarea name="description" required rows="3" class="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="落とし物の特徴や発見場所などを入力してください"></textarea>
+                            </div>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">状態</label>
+                                    <select name="status" class="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                        <option value="found">発見</option>
+                                        <option value="lost">紛失</option>
+                                        <option value="claimed">受取済</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">発見場所</label>
+                                    <input type="text" name="location_found" class="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="例：体育館">
+                                </div>
+                            </div>
+                            <div class="mb-4">
+                                <label class="block text-sm font-medium text-gray-700 mb-2">連絡先情報</label>
+                                <input type="text" name="contact_info" class="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="例：職員室まで、1年A組田中先生まで">
+                            </div>
+                            <div class="flex gap-2">
+                                <button type="submit" class="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 transition-colors">
+                                    投稿
+                                </button>
+                                <button type="button" onclick="hideLostItemForm()" class="bg-gray-500 text-white px-6 py-2 rounded-md hover:bg-gray-600 transition-colors">
+                                    キャンセル
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                    
+                    <!-- 忘れ物一覧 -->
+                    <div class="bg-white rounded-lg shadow-sm">
+                        <div class="p-6">
+                            <h2 class="text-xl font-semibold text-gray-900 mb-4">忘れ物一覧</h2>
+                            <div id="lost-items-list" class="space-y-4">
+                                <div class="text-center py-8 text-gray-500">
+                                    <p>忘れ物の情報を読み込んでいます...</p>
+                                </div>
                             </div>
                         </div>
                     </div>

@@ -6,6 +6,7 @@ let streams = [];
 let selectedStream = null;
 let currentStreamAnnouncements = [];
 let authToken = null;
+let lostItems = [];
 
 // 設定
 const API_BASE_URL = 'http://localhost:8000'; // バックエンドAPI URL
@@ -589,6 +590,92 @@ async function fetchEvents() {
             events = sampleEvents;
             updateDashboardEvents();
         }
+    }
+}
+
+// 忘れ物掲示板API関数
+async function fetchLostItems() {
+    try {
+        if (USE_MOCK_DATA) {
+            // モックデータ
+            lostItems = [
+                {
+                    id: '1',
+                    title: '黒い水筒',
+                    description: '黒い水筒が体育館で見つかりました。お心当たりのある方はお申し出ください。',
+                    category: '水筒・お弁当箱',
+                    location_found: '体育館',
+                    status: 'found',
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString()
+                },
+                {
+                    id: '2',
+                    title: '数学の教科書',
+                    description: '数学Ⅰの教科書です。名前が書いてありません。',
+                    category: '教科書・参考書',
+                    location_found: '3年B組',
+                    status: 'found',
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString()
+                }
+            ];
+        } else {
+            const headers = {
+                'Authorization': `Bearer ${authToken}`,
+                'Content-Type': 'application/json'
+            };
+            const response = await fetch(`${API_BASE_URL}/api/lost-items`, { headers });
+            if (response.ok) {
+                lostItems = await response.json();
+            } else {
+                throw new Error('忘れ物の取得に失敗しました');
+            }
+        }
+        
+        if (document.getElementById('lostItems').classList.contains('hidden') === false) {
+            renderLostItems();
+        }
+    } catch (error) {
+        console.error('忘れ物の取得に失敗しました:', error);
+    }
+}
+
+async function createLostItem(lostItemData) {
+    try {
+        if (USE_MOCK_DATA) {
+            const newLostItem = {
+                id: Date.now().toString(),
+                ...lostItemData,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+                created_by: currentUser?.id || 'mock-user'
+            };
+            lostItems.unshift(newLostItem);
+            return newLostItem;
+        } else {
+            const headers = {
+                'Authorization': `Bearer ${authToken}`,
+                'Content-Type': 'application/json'
+            };
+            const response = await fetch(`${API_BASE_URL}/api/lost-items`, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify(lostItemData)
+            });
+            
+            if (response.ok) {
+                const newLostItem = await response.json();
+                lostItems.unshift(newLostItem);
+                return newLostItem;
+            } else {
+                const errorData = await response.json();
+                throw new Error(errorData.detail || '忘れ物の作成に失敗しました');
+            }
+        }
+    } catch (error) {
+        console.error('忘れ物の作成に失敗しました:', error);
+        throw error;
     }
 }
 
@@ -1587,6 +1674,21 @@ function showStreams() {
     }
 }
 
+function showLostItems() {
+    console.log('📋 忘れ物掲示板ページ表示処理開始');
+    document.querySelectorAll('.page-content').forEach(el => el.classList.add('hidden'));
+    const lostItemsEl = document.getElementById('lostItems');
+    if (lostItemsEl) {
+        lostItemsEl.classList.remove('hidden');
+    } else {
+        console.error('❌ 忘れ物掲示板ページ要素が見つかりません');
+    }
+    
+    updateNavigation('lostItems');
+    updateLostItemsControls();
+    fetchLostItems().then(() => renderLostItems());
+}
+
 // ストリーム一覧を表示
 function renderStreams() {
     console.log('🎨 renderStreams開始、streams:', streams ? streams.length : 'null', '件');
@@ -1687,6 +1789,88 @@ function updateStreamElevationSection() {
         // 権限がない場合は表示
         elevationSection.classList.remove('hidden');
     }
+}
+
+// 忘れ物掲示板一覧を表示
+function renderLostItems() {
+    console.log('🎨 renderLostItems開始、lostItems:', lostItems ? lostItems.length : 'null', '件');
+    const lostItemsContainer = document.getElementById('lost-items-list');
+    if (!lostItemsContainer) {
+        console.error('❌ lost-items-list要素が見つかりません');
+        return;
+    }
+    
+    if (!lostItems || lostItems.length === 0) {
+        lostItemsContainer.innerHTML = `
+            <div class="text-center py-8 text-gray-500">
+                <p>忘れ物の情報がありません</p>
+            </div>
+        `;
+        return;
+    }
+    
+    const lostItemHTML = lostItems.map(item => `
+        <div class="p-4 border border-gray-200 rounded-lg">
+            <div class="flex items-center justify-between mb-2">
+                <h4 class="font-medium text-gray-900">${escapeHtml(item.title)}</h4>
+                <span class="px-2 py-1 text-xs rounded-full ${getLostItemStatusColor(item.status)}">
+                    ${getLostItemStatusLabel(item.status)}
+                </span>
+            </div>
+            <p class="text-gray-600 text-sm mb-3">${escapeHtml(item.description)}</p>
+            <div class="flex items-center text-xs text-gray-500 space-x-4">
+                ${item.category ? `<span>📂 ${escapeHtml(item.category)}</span>` : ''}
+                ${item.location_found ? `<span>📍 ${escapeHtml(item.location_found)}</span>` : ''}
+                ${item.location_lost ? `<span>❓ ${escapeHtml(item.location_lost)}</span>` : ''}
+            </div>
+            <div class="mt-2 text-xs text-gray-400">
+                ${formatDate(item.created_at)}
+            </div>
+        </div>
+    `).join('');
+    
+    lostItemsContainer.innerHTML = lostItemHTML;
+}
+
+// 忘れ物ステータスの色を取得
+function getLostItemStatusColor(status) {
+    switch (status) {
+        case 'lost': return 'bg-red-100 text-red-800';
+        case 'found': return 'bg-blue-100 text-blue-800';
+        case 'claimed': return 'bg-green-100 text-green-800';
+        default: return 'bg-gray-100 text-gray-800';
+    }
+}
+
+// 忘れ物ステータスのラベルを取得
+function getLostItemStatusLabel(status) {
+    switch (status) {
+        case 'lost': return '紛失';
+        case 'found': return '発見';
+        case 'claimed': return '受取済';
+        default: return '不明';
+    }
+}
+
+// 忘れ物掲示板の権限制御
+function updateLostItemsControls() {
+    const createBtn = document.getElementById('create-lost-item-btn');
+    if (createBtn) {
+        // 教師、管理者、スーパー管理者のみ投稿可能
+        const canPost = currentUser && (currentUser.role === 'teacher' || currentUser.role === 'admin' || currentUser.role === 'super_admin');
+        createBtn.style.display = canPost ? 'block' : 'none';
+    }
+}
+
+// 忘れ物掲示板フォーム表示
+function showLostItemForm() {
+    document.getElementById('lost-item-form').classList.remove('hidden');
+}
+
+// 忘れ物掲示板フォーム非表示
+function hideLostItemForm() {
+    document.getElementById('lost-item-form').classList.add('hidden');
+    document.getElementById('new-lost-item-form').reset();
 }
 
 // ストリーム固有の権限昇格
@@ -2717,6 +2901,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             else if (tab === 'assignments') showAssignments();
             else if (tab === 'events') showEvents();
             else if (tab === 'streams') showStreams();
+            else if (tab === 'lostItems') showLostItems();
             else if (tab === 'profile') showProfile();
         });
     });
@@ -3263,3 +3448,32 @@ function populateInviteStreamSelect() {
         }
     });
 }
+
+// 忘れ物掲示板フォーム送信処理を追加
+document.addEventListener('DOMContentLoaded', () => {
+    const lostItemForm = document.getElementById('new-lost-item-form');
+    if (lostItemForm) {
+        lostItemForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = new FormData(e.target);
+            const lostItemData = {
+                title: formData.get('title'),
+                description: formData.get('description'),
+                category: formData.get('category') || null,
+                location_found: formData.get('location_found') || null,
+                status: formData.get('status'),
+                contact_info: formData.get('contact_info') || null
+            };
+            
+            try {
+                await createLostItem(lostItemData);
+                hideLostItemForm();
+                renderLostItems();
+                alert('忘れ物情報を投稿しました');
+            } catch (error) {
+                alert('忘れ物情報の投稿に失敗しました: ' + error.message);
+            }
+        });
+    }
+});

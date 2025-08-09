@@ -36,6 +36,12 @@ class AnnouncementType(str, Enum):
     REMINDER = "reminder"
 
 
+class LostItemStatus(str, Enum):
+    LOST = "lost"
+    FOUND = "found"
+    CLAIMED = "claimed"
+
+
 class StreamType(str, Enum):
     CLASS = "class"
     SUBJECT = "subject"
@@ -72,6 +78,7 @@ class User(SQLModel, table=True):
     created_announcements: list["Announcement"] = Relationship(back_populates="creator")
     created_streams: list["Stream"] = Relationship(back_populates="creator")
     stream_memberships: list["StreamMembership"] = Relationship(back_populates="user")
+    created_lost_items: list["LostItem"] = Relationship(back_populates="creator")
 
 
 class Assignment(SQLModel, table=True):
@@ -224,9 +231,39 @@ class AnnouncementReaction(SQLModel, table=True):
     announcement: Announcement = Relationship(back_populates="reactions")
 
 
-# TODO: Phase 2 models for suggestion box and lost & found
+class LostItem(SQLModel, table=True):
+    """忘れ物・落とし物掲示板"""
+
+    __tablename__ = "lost_items"
+
+    id: str = Field(default_factory=lambda: str(uuid4()), primary_key=True)
+    title: str  # "黒い水筒", "数学の教科書"など
+    description: str  # 詳細説明
+    category: Optional[str] = None  # "文房具", "衣類", "教科書"など
+    location_found: Optional[str] = None  # 発見場所
+    location_lost: Optional[str] = None  # 紛失場所
+    
+    # ステータス
+    status: LostItemStatus = Field(default=LostItemStatus.LOST)
+    
+    # 画像・添付ファイル
+    image_url: Optional[str] = None
+    
+    # 連絡先情報
+    contact_info: Optional[str] = None  # 連絡方法
+    
+    # 日時情報
+    date_lost: Optional[datetime] = None  # 紛失日時
+    date_found: Optional[datetime] = None  # 発見日時
+    
+    created_by: str = Field(foreign_key="users.id")
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    
+    # Relationships
+    creator: User = Relationship(back_populates="created_lost_items")
+
+
+# TODO: Phase 2 models for suggestion box
 # class Suggestion(SQLModel, table=True):
-#     pass
-#
-# class LostItem(SQLModel, table=True):
 #     pass
