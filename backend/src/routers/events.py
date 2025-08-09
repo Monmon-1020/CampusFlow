@@ -16,7 +16,7 @@ router = APIRouter(prefix="/api/events", tags=["events"])
 @router.post("", response_model=EventResponse)
 async def create_event(
     event_data: EventCreate,
-    current_user: User = Depends(get_current_admin),
+    current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_async_session),
 ):
     # Validate that end_at is after start_at

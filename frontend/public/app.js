@@ -1547,7 +1547,7 @@ function showAssignments() {
     }
     
     updateNavigation('assignments');
-    renderAssignments();
+    fetchAssignments().then(() => renderAssignments());
 }
 
 function showEvents() {
@@ -1561,7 +1561,7 @@ function showEvents() {
     }
     
     updateNavigation('events');
-    renderEvents();
+    fetchEvents().then(() => renderEvents());
 }
 
 function showStreams() {
@@ -1961,7 +1961,12 @@ async function fetchStreamAnnouncements(streamId) {
             ]
         };
         
-        currentStreamAnnouncements = mockAnnouncementsByStream[streamId] || [];
+        const mockAnnouncements = mockAnnouncementsByStream[streamId] || [];
+        // モックデータにも is_own_post フラグを設定
+        currentStreamAnnouncements = mockAnnouncements.map(announcement => ({
+            ...announcement,
+            is_own_post: announcement.creator && announcement.creator.id === currentUser.id
+        }));
         renderStreamAnnouncements();
         } else {
             // 実際のAPIを使用
@@ -1976,7 +1981,11 @@ async function fetchStreamAnnouncements(streamId) {
             
             if (response.ok) {
                 const announcements = await response.json();
-                currentStreamAnnouncements = announcements;
+                // 各お知らせに is_own_post フラグを設定
+                currentStreamAnnouncements = announcements.map(announcement => ({
+                    ...announcement,
+                    is_own_post: announcement.creator && announcement.creator.id === currentUser.id
+                }));
                 renderStreamAnnouncements();
             } else {
                 console.error('❌ お知らせ取得失敗:', response.status);
@@ -2058,14 +2067,14 @@ function renderStreamAnnouncements() {
                 ${announcement.is_own_post ? `
                     <div class="flex items-center gap-2">
                         <button 
-                            onclick="editAnnouncement(${announcement.id})" 
+                            onclick="editAnnouncement('${announcement.id}')" 
                             class="text-blue-600 hover:text-blue-800 text-xs px-2 py-1 rounded border border-blue-300 hover:bg-blue-50"
                             title="編集"
                         >
                             ✏️ 編集
                         </button>
                         <button 
-                            onclick="deleteAnnouncement(${announcement.id})" 
+                            onclick="deleteAnnouncement('${announcement.id}')" 
                             class="text-red-600 hover:text-red-800 text-xs px-2 py-1 rounded border border-red-300 hover:bg-red-50"
                             title="削除"
                         >
@@ -2284,6 +2293,7 @@ async function handlePostSubmit(event) {
         // 課題の場合、まず課題を作成
         if (postType === 'homework' && homeworkDue) {
             try {
+                console.log('📝 課題投稿開始:', { title, content, due: homeworkDue });
                 const assignmentResponse = await fetch(`${API_BASE_URL}/api/assignments`, {
                     method: 'POST',
                     headers,
@@ -2295,12 +2305,17 @@ async function handlePostSubmit(event) {
                     })
                 });
                 
+                console.log('📝 課題API レスポンス status:', assignmentResponse.status);
+                const assignmentData = await assignmentResponse.json();
+                console.log('📝 課題API レスポンス data:', assignmentData);
+                
                 if (assignmentResponse.ok) {
+                    console.log('✅ 課題作成成功');
                 } else {
-                    console.warn('⚠️ 課題作成失敗、お知らせのみ投稿');
+                    console.warn('⚠️ 課題作成失敗:', assignmentData);
                 }
             } catch (error) {
-                console.warn('⚠️ 課題作成エラー:', error);
+                console.error('❌ 課題作成エラー:', error);
             }
         }
 
@@ -2324,6 +2339,9 @@ async function handlePostSubmit(event) {
             setTimeout(() => {
                 closePostModal();
                 fetchStreamAnnouncements(selectedStream.id);
+                // 課題・イベントデータも再取得
+                fetchAssignments();
+                fetchEvents();
             }, 1500);
         } else {
             showPostResult('error', data.detail || '投稿に失敗しました');
@@ -2531,10 +2549,12 @@ function generateMockSearchResults(query) {
         const titleMatch = result.title.toLowerCase().includes(query.toLowerCase());
         const contentMatch = result.content.toLowerCase().includes(query.toLowerCase());
         
-            titleMatch,
-            contentMatch,
-            match: titleMatch || contentMatch
-        });
+        // Debug info - uncomment if needed
+        // console.log({
+        //     titleMatch,
+        //     contentMatch,
+        //     match: titleMatch || contentMatch
+        // });
         
         return titleMatch || contentMatch;
     });
@@ -2875,6 +2895,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 // お知らせ編集・削除機能
 async function editAnnouncement(announcementId) {
+    console.log('📝 editAnnouncement called with ID:', announcementId);
     const announcement = currentStreamAnnouncements.find(a => a.id === announcementId);
     if (!announcement) {
         alert('お知らせが見つかりません');
@@ -2945,6 +2966,7 @@ async function editAnnouncement(announcementId) {
 }
 
 async function deleteAnnouncement(announcementId) {
+    console.log('🗑️ deleteAnnouncement called with ID:', announcementId);
     const announcement = currentStreamAnnouncements.find(a => a.id === announcementId);
     if (!announcement) {
         alert('お知らせが見つかりません');

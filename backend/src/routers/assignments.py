@@ -23,7 +23,7 @@ router = APIRouter(prefix="/api/assignments", tags=["assignments"])
 @router.post("", response_model=AssignmentResponse)
 async def create_assignment(
     assignment_data: AssignmentCreate,
-    current_user: User = Depends(get_current_teacher),
+    current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_async_session),
 ):
     assignment = Assignment(**assignment_data.model_dump(), created_by=current_user.id)
