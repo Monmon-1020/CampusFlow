@@ -242,24 +242,24 @@ class LostItem(SQLModel, table=True):
     category: Optional[str] = None  # "文房具", "衣類", "教科書"など
     location_found: Optional[str] = None  # 発見場所
     location_lost: Optional[str] = None  # 紛失場所
-    
+
     # ステータス
     status: LostItemStatus = Field(default=LostItemStatus.LOST)
-    
+
     # 画像・添付ファイル
     image_url: Optional[str] = None
-    
+
     # 連絡先情報
     contact_info: Optional[str] = None  # 連絡方法
-    
+
     # 日時情報
     date_lost: Optional[datetime] = None  # 紛失日時
     date_found: Optional[datetime] = None  # 発見日時
-    
+
     created_by: str = Field(foreign_key="users.id")
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
-    
+
     # Relationships
     creator: User = Relationship(back_populates="created_lost_items")
 

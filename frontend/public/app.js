@@ -9,9 +9,7 @@ let authToken = null;
 let lostItems = [];
 
 // 設定
-const API_BASE_URL = window.location.hostname === 'localhost' 
-    ? 'http://localhost:8000'
-    : `${window.location.protocol}//${window.location.hostname}:8000`; // バックエンドAPI URL
+const API_BASE_URL = 'http://localhost:8001'; // バックエンドAPI URL
 const USE_MOCK_DATA = false; // フロントエンドのみの場合は true に設定
 
 // デバッグ情報
@@ -3997,6 +3995,11 @@ async function castVote(targetId, targetType) {
         
         const result = await response.json();
         document.getElementById('brainstorm-remaining-votes').textContent = `残り投票数: ${result.remaining_votes}票`;
+        
+        console.log('✅ 投票成功:', { targetId, targetType, remaining: result.remaining_votes });
+        
+        // WebSocketを待たずに即座にUIを更新
+        updateVoteCount(targetId, targetType);
         
     } catch (error) {
         console.error('投票エラー:', error);

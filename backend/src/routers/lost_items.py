@@ -83,8 +83,10 @@ async def update_lost_item(
         )
 
     # Check if user is the creator, admin, or super_admin
-    if (lost_item.created_by != current_user.id and 
-        current_user.role not in ["admin", "super_admin"]):
+    if lost_item.created_by != current_user.id and current_user.role not in [
+        "admin",
+        "super_admin",
+    ]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not authorized to update this lost item",
@@ -118,8 +120,10 @@ async def delete_lost_item(
         )
 
     # Check if user is the creator, admin, or super_admin
-    if (lost_item.created_by != current_user.id and 
-        current_user.role not in ["admin", "super_admin"]):
+    if lost_item.created_by != current_user.id and current_user.role not in [
+        "admin",
+        "super_admin",
+    ]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not authorized to delete this lost item",
@@ -134,15 +138,5 @@ async def delete_lost_item(
 @router.get("/categories/", response_model=List[str])
 async def get_lost_item_categories(current_user: User = Depends(get_current_user)):
     """Get common lost item categories"""
-    categories = [
-        "文房具",
-        "教科書・参考書",
-        "衣類",
-        "水筒・お弁当箱",
-        "体操着",
-        "上履き",
-        "傘",
-        "鍵",
-        "その他"
-    ]
+    categories = ["文房具", "教科書・参考書", "衣類", "水筒・お弁当箱", "体操着", "上履き", "傘", "鍵", "その他"]
     return categories

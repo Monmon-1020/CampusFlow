@@ -5,9 +5,9 @@ from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisco
 from pydantic import BaseModel
 
 from ..auth import get_current_user
-from ..brainstorm_service import get_brainstorm_service, BrainstormSession
+from ..brainstorm_service import BrainstormSession, get_brainstorm_service
 from ..database import get_async_session
-from ..models import User, StreamMembership, StreamRole
+from ..models import StreamMembership, StreamRole, User
 
 router = APIRouter(prefix="/api/brainstorm", tags=["brainstorm"])
 
@@ -70,28 +70,27 @@ manager = ConnectionManager()
 
 # Helper function to check stream admin permission
 async def verify_stream_admin(user: User, stream_id: str, db):
-    from sqlmodel import select, or_
+    from sqlmodel import or_, select
+
     from ..models import UserRole
-    
+
     # Super admins have access to everything
     if user.role == UserRole.SUPER_ADMIN:
         return None  # No need to return membership for super admins
-    
+
     statement = select(StreamMembership).where(
         StreamMembership.user_id == user.id,
         StreamMembership.stream_id == stream_id,
         or_(
             StreamMembership.role == StreamRole.STREAM_ADMIN,
             StreamMembership.role == StreamRole.ADMIN,
-        )
+        ),
     )
     result = await db.execute(statement)
     membership = result.scalars().first()
-    
+
     if not membership:
-        raise HTTPException(
-            status_code=403, detail="User is not admin of this stream"
-        )
+        raise HTTPException(status_code=403, detail="User is not admin of this stream")
     return membership
 
 
@@ -105,9 +104,9 @@ async def create_session(
     """Create new brainstorming session (admin only)"""
     # Verify user is stream admin
     await verify_stream_admin(current_user, request.stream_id, db)
-    
+
     session_id = await service.create_session(request.stream_id, current_user.id)
-    
+
     # Broadcast session start
     await manager.broadcast_to_session(
         session_id,
@@ -118,7 +117,7 @@ async def create_session(
             "timestamp": str(__import__("datetime").datetime.utcnow()),
         },
     )
-    
+
     return {"session_id": session_id, "state": "open"}
 
 
@@ -132,10 +131,10 @@ async def get_session(
     # Join session if not already joined
     anon_id = await service.join_session(session_id, current_user.id)
     session_data = await service.get_session_data(session_id)
-    
+
     # Add user's anonymous ID to response
     session_data["anon_id"] = anon_id
-    
+
     return session_data
 
 
@@ -148,7 +147,7 @@ async def submit_idea(
 ):
     """Submit new idea"""
     idea_id = await service.submit_idea(session_id, current_user.id, request.text)
-    
+
     # Get idea data for broadcast
     session_data = await service.get_session_data(session_id)
     new_idea = None
@@ -156,7 +155,7 @@ async def submit_idea(
         if idea["id"] == idea_id:
             new_idea = idea
             break
-    
+
     # Broadcast new idea if found
     if new_idea:
         await manager.broadcast_to_session(
@@ -167,7 +166,7 @@ async def submit_idea(
                 "timestamp": str(__import__("datetime").datetime.utcnow()),
             },
         )
-    
+
     return {"idea_id": idea_id, "success": True}
 
 
@@ -180,7 +179,7 @@ async def create_group(
 ):
     """Create new group (admin only)"""
     group_id = await service.create_group(session_id, current_user.id, request.title)
-    
+
     # Get group data for broadcast
     session_data = await service.get_session_data(session_id)
     new_group = None
@@ -188,7 +187,7 @@ async def create_group(
         if group["id"] == group_id:
             new_group = group
             break
-    
+
     # Broadcast new group if found
     if new_group:
         await manager.broadcast_to_session(
@@ -199,7 +198,7 @@ async def create_group(
                 "timestamp": str(__import__("datetime").datetime.utcnow()),
             },
         )
-    
+
     return {"group_id": group_id, "success": True}
 
 
@@ -214,7 +213,7 @@ async def move_idea_to_group(
     await service.move_idea_to_group(
         session_id, current_user.id, request.idea_id, request.group_id
     )
-    
+
     # Broadcast idea update
     await manager.broadcast_to_session(
         session_id,
@@ -225,7 +224,7 @@ async def move_idea_to_group(
             "timestamp": str(__import__("datetime").datetime.utcnow()),
         },
     )
-    
+
     return {"success": True}
 
 
@@ -237,7 +236,7 @@ async def start_voting(
 ):
     """Start voting phase (admin only)"""
     await service.start_voting(session_id, current_user.id)
-    
+
     # Broadcast phase change
     await manager.broadcast_to_session(
         session_id,
@@ -247,7 +246,7 @@ async def start_voting(
             "timestamp": str(__import__("datetime").datetime.utcnow()),
         },
     )
-    
+
     return {"success": True, "phase": "voting"}
 
 
@@ -262,7 +261,7 @@ async def vote(
     remaining_votes = await service.cast_vote(
         session_id, current_user.id, request.target_id, request.target_type
     )
-    
+
     # Broadcast vote cast
     await manager.broadcast_to_session(
         session_id,
@@ -273,7 +272,7 @@ async def vote(
             "timestamp": str(__import__("datetime").datetime.utcnow()),
         },
     )
-    
+
     return {"remaining_votes": remaining_votes}
 
 
@@ -285,7 +284,7 @@ async def end_session(
 ):
     """End session and generate summary (admin only)"""
     summary = await service.end_session(session_id, current_user.id)
-    
+
     # Broadcast session end with summary
     await manager.broadcast_to_session(
         session_id,
@@ -295,7 +294,7 @@ async def end_session(
             "timestamp": str(__import__("datetime").datetime.utcnow()),
         },
     )
-    
+
     return summary
 
 
@@ -307,7 +306,7 @@ async def delete_session(
 ):
     """Delete brainstorm session (admin only)"""
     await service.delete_session(session_id, current_user.id)
-    
+
     # Broadcast session deletion
     await manager.broadcast_to_session(
         session_id,
@@ -316,7 +315,7 @@ async def delete_session(
             "timestamp": str(__import__("datetime").datetime.utcnow()),
         },
     )
-    
+
     return {"success": True, "message": "Session deleted"}
 
 
@@ -330,36 +329,38 @@ async def save_summary(
 ):
     """Save summary to stream (admin only)"""
     from sqlmodel import select
+
     from ..models import Announcement, AnnouncementType
-    
+
     summary = await service.generate_summary(session_id)
-    
+
     # Get stream ID
     stream_id = await service._get_redis_value(f"session:{session_id}:stream_id")
     if not stream_id:
         raise HTTPException(status_code=404, detail="Session not found")
-    
+
     # Verify admin permission
     await verify_stream_admin(current_user, stream_id, db)
-    
+
     # Get session data for representative ideas
     session_data = await service.get_session_data(session_id)
-    
+
     # Generate markdown content
     title = request.title or "ブレスト結果"
     content = f"# {title}\n\n"
-    
+
     if summary["type"] == "groups":
         content += f"**参加者数**: {summary['participants']}人\n"
         content += f"**総アイデア数**: {summary['total_ideas']}件\n"
         content += f"**総投票数**: {summary['total_votes']}票\n\n"
         content += "## 上位グループ\n\n"
-        
+
         for i, group in enumerate(summary["top_groups"], 1):
             content += f"{i}. **{group['title']}** (票: {group['votes']})\n"
             # Get representative ideas from the group
             group_ideas = [
-                idea for idea in session_data.get("ideas", [])
+                idea
+                for idea in session_data.get("ideas", [])
                 if idea.get("group_id") == group["id"]
             ]
             if group_ideas:
@@ -370,10 +371,10 @@ async def save_summary(
         content += f"**参加者数**: {summary['participants']}人\n"
         content += f"**総アイデア数**: {summary['total_ideas']}件\n\n"
         content += "## 上位アイデア\n\n"
-        
+
         for i, idea in enumerate(summary["top_items"], 1):
             content += f"{i}. 「{idea['text']}」 (票: {idea['votes']})\n"
-    
+
     # Create announcement directly
     new_announcement = Announcement(
         title=title,
@@ -384,14 +385,14 @@ async def save_summary(
         created_at=datetime.utcnow(),
         updated_at=datetime.utcnow(),
     )
-    
+
     db.add(new_announcement)
     await db.commit()
     await db.refresh(new_announcement)
-    
+
     # Delete the brainstorm session after saving
     await service.delete_session(session_id, current_user.id)
-    
+
     # Broadcast session deletion and save completion
     await manager.broadcast_to_session(
         session_id,
@@ -401,7 +402,7 @@ async def save_summary(
             "timestamp": str(__import__("datetime").datetime.utcnow()),
         },
     )
-    
+
     return {
         "success": True,
         "announcement_id": new_announcement.id,
@@ -420,8 +421,9 @@ async def websocket_endpoint(
     try:
         # Verify token
         from jose import JWTError, jwt
-        from ..auth import JWT_SECRET_KEY, JWT_ALGORITHM
-        
+
+        from ..auth import JWT_ALGORITHM, JWT_SECRET_KEY
+
         try:
             payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
             user_id = payload.get("sub")
@@ -431,9 +433,9 @@ async def websocket_endpoint(
         except JWTError:
             await websocket.close(code=1008, reason="Invalid token")
             return
-        
+
         await manager.connect(websocket, session_id, user_id)
-        
+
         try:
             while True:
                 # Keep connection alive, listen for client messages if needed
