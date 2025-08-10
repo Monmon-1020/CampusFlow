@@ -9,7 +9,9 @@ let authToken = null;
 let lostItems = [];
 
 // 設定
-const API_BASE_URL = 'http://localhost:8000'; // バックエンドAPI URL
+const API_BASE_URL = window.location.hostname === 'localhost' 
+    ? 'http://localhost:8000'
+    : `${window.location.protocol}//${window.location.hostname}:8000`; // バックエンドAPI URL
 const USE_MOCK_DATA = false; // フロントエンドのみの場合は true に設定
 
 // デバッグ情報
@@ -3477,3 +3479,695 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 });
+
+// ブレインストーミング機能
+let currentBrainstormSession = null;
+let brainstormWebSocket = null;
+let currentAnonymousId = null;
+
+// ブレインストーミング開始
+async function startBrainstorming() {
+    if (!selectedStream) {
+        alert('ストリームを選択してください');
+        return;
+    }
+    
+    console.log('🧠 ブレインストーミング開始:', selectedStream.id);
+    
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/brainstorm/sessions`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${authToken}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                stream_id: selectedStream.id
+            })
+        });
+        
+        if (!response.ok) {
+            throw new Error('セッション作成に失敗しました');
+        }
+        
+        const sessionData = await response.json();
+        currentBrainstormSession = sessionData;
+        
+        // モーダル表示
+        document.getElementById('brainstorm-stream-name').textContent = selectedStream.name;
+        document.getElementById('brainstorm-modal').classList.remove('hidden');
+        
+        // WebSocket接続
+        connectBrainstormWebSocket(sessionData.session_id);
+        
+        // セッションデータ取得
+        await loadBrainstormSession(sessionData.session_id);
+        
+    } catch (error) {
+        console.error('ブレインストーミング開始エラー:', error);
+        alert('ブレインストーミングの開始に失敗しました');
+    }
+}
+
+// WebSocket接続
+function connectBrainstormWebSocket(sessionId) {
+    const wsUrl = `ws://localhost:8000/api/brainstorm/sessions/${sessionId}/ws?token=${authToken}`;
+    brainstormWebSocket = new WebSocket(wsUrl);
+    
+    brainstormWebSocket.onopen = function(event) {
+        console.log('🔌 ブレインストーミングWebSocket接続開始');
+    };
+    
+    brainstormWebSocket.onmessage = function(event) {
+        const message = JSON.parse(event.data);
+        handleBrainstormMessage(message);
+    };
+    
+    brainstormWebSocket.onclose = function(event) {
+        console.log('🔌 ブレインストーミングWebSocket接続終了');
+    };
+    
+    brainstormWebSocket.onerror = function(error) {
+        console.error('🔌 ブレインストーミングWebSocketエラー:', error);
+    };
+}
+
+// WebSocketメッセージ処理
+function handleBrainstormMessage(message) {
+    console.log('📨 ブレインストーミングメッセージ受信:', message);
+    
+    switch (message.type) {
+        case 'session:phase':
+            console.log('🔄 フェーズ変更:', message.phase);
+            updateBrainstormPhase(message.phase);
+            break;
+        case 'idea:new':
+            console.log('💡 新しいアイデア受信:', message.idea);
+            addIdeaToList(message.idea);
+            break;
+        case 'idea:update':
+            console.log('✏️ アイデア更新:', message.idea_id, message.patch);
+            updateIdeaInList(message.idea_id, message.patch);
+            break;
+        case 'group:new':
+            console.log('📁 新しいグループ受信:', message.group);
+            addGroupToList(message.group);
+            break;
+        case 'vote:cast':
+            console.log('🗳️ 投票受信:', message.target_id, message.target_type);
+            updateVoteCount(message.target_id, message.target_type);
+            break;
+        case 'session:summary':
+            console.log('📊 セッション終了:', message.summary);
+            showBrainstormResults(message.summary);
+            break;
+        case 'session:deleted':
+            console.log('🗑️ セッション削除:', message);
+            alert('ブレストセッションが削除されました');
+            closeBrainstormModal();
+            break;
+        case 'session:saved_and_deleted':
+            console.log('💾 セッション保存・削除:', message);
+            // セッションが保存後削除された場合の処理
+            // アラートは保存関数で表示されるので、ここではモーダルを閉じるだけ
+            break;
+        default:
+            console.warn('⚠️ 不明なメッセージタイプ:', message.type);
+    }
+}
+
+// セッションデータ読み込み
+async function loadBrainstormSession(sessionId) {
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/brainstorm/sessions/${sessionId}`, {
+            headers: {
+                'Authorization': `Bearer ${authToken}`
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error('セッションデータ取得に失敗しました');
+        }
+        
+        const sessionData = await response.json();
+        currentAnonymousId = sessionData.anon_id;
+        
+        // UI更新
+        updateBrainstormPhase(sessionData.state);
+        updateBrainstormStats(sessionData.counters);
+        renderBrainstormIdeas(sessionData.ideas);
+        renderBrainstormGroups(sessionData.groups);
+        
+    } catch (error) {
+        console.error('セッションデータ読み込みエラー:', error);
+        alert('セッションデータの読み込みに失敗しました');
+    }
+}
+
+// フェーズ更新
+function updateBrainstormPhase(phase) {
+    const phaseText = {
+        'open': 'アイデア投稿中',
+        'voting': '投票中', 
+        'closed': '終了'
+    };
+    
+    document.getElementById('brainstorm-phase').textContent = phaseText[phase] || phase;
+    
+    // ボタン状態更新
+    const startBtn = document.getElementById('brainstorm-start-btn');
+    const votingBtn = document.getElementById('brainstorm-voting-btn');
+    const endBtn = document.getElementById('brainstorm-end-btn');
+    const saveBtn = document.getElementById('save-summary-btn');
+    
+    if (phase === 'open') {
+        startBtn.disabled = true;
+        votingBtn.disabled = false;
+        endBtn.disabled = false;
+        document.getElementById('brainstorm-input-area').style.display = 'block';
+        document.getElementById('brainstorm-remaining-votes').classList.add('hidden');
+    } else if (phase === 'voting') {
+        startBtn.disabled = true;
+        votingBtn.disabled = true;
+        endBtn.disabled = false;
+        document.getElementById('brainstorm-input-area').style.display = 'none';
+        document.getElementById('brainstorm-remaining-votes').classList.remove('hidden');
+    } else if (phase === 'closed') {
+        startBtn.disabled = true;
+        votingBtn.disabled = true;
+        endBtn.disabled = true;
+        saveBtn.disabled = false;
+        document.getElementById('brainstorm-input-area').style.display = 'none';
+    }
+}
+
+// 統計情報更新
+function updateBrainstormStats(counters) {
+    if (counters.active_users) {
+        document.getElementById('brainstorm-participants').textContent = `${counters.active_users}人参加`;
+    }
+    if (counters.total_ideas) {
+        document.getElementById('brainstorm-ideas-count').textContent = `${counters.total_ideas}件のアイデア`;
+    }
+}
+
+// アイデア投稿
+async function submitIdea() {
+    const input = document.getElementById('brainstorm-idea-input');
+    const text = input.value.trim();
+    
+    if (!text) {
+        alert('アイデアを入力してください');
+        return;
+    }
+    
+    if (!currentBrainstormSession) {
+        alert('セッションが開始されていません');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/brainstorm/sessions/${currentBrainstormSession.session_id}/ideas`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${authToken}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                text: text
+            })
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'アイデア投稿に失敗しました');
+        }
+        
+        input.value = '';
+        
+        // デバッグ用: セッションデータを再読み込み
+        setTimeout(() => {
+            loadBrainstormSession(currentBrainstormSession.session_id);
+        }, 100);
+        
+    } catch (error) {
+        console.error('アイデア投稿エラー:', error);
+        alert(error.message);
+    }
+}
+
+// アイデアをリストに追加
+function addIdeaToList(idea) {
+    console.log('💡 アイデアをリストに追加中:', idea);
+    const ideasList = document.getElementById('brainstorm-ideas-list');
+    if (!ideasList) {
+        console.error('❌ brainstorm-ideas-list が見つかりません');
+        return;
+    }
+    
+    if (ideasList.querySelector('.text-center')) {
+        ideasList.innerHTML = '';
+    }
+    
+    const ideaElement = document.createElement('div');
+    ideaElement.className = 'bg-white p-3 rounded-lg shadow-sm border draggable';
+    ideaElement.draggable = true;
+    ideaElement.dataset.ideaId = idea.id;
+    ideaElement.innerHTML = `
+        <div class="flex justify-between items-start">
+            <span class="text-sm flex-1">${escapeHtml(idea.text)}</span>
+            <div class="ml-2 flex items-center gap-2">
+                <span class="text-xs text-purple-600 bg-purple-100 px-2 py-1 rounded vote-count">👍 ${idea.votes || 0}</span>
+                <button onclick="voteForIdea('${idea.id}')" class="text-xs text-blue-600 hover:text-blue-800 vote-btn">投票</button>
+            </div>
+        </div>
+    `;
+    
+    // ドラッグイベント
+    ideaElement.addEventListener('dragstart', (e) => {
+        e.dataTransfer.setData('text/plain', idea.id);
+        e.dataTransfer.setData('application/json', JSON.stringify(idea));
+    });
+    
+    ideasList.prepend(ideaElement);
+}
+
+// アイデア一覧表示
+function renderBrainstormIdeas(ideas) {
+    const ideasList = document.getElementById('brainstorm-ideas-list');
+    ideasList.innerHTML = '';
+    
+    if (ideas.length === 0) {
+        ideasList.innerHTML = '<div class="text-center text-gray-500 py-8">まだアイデアが投稿されていません</div>';
+        return;
+    }
+    
+    ideas.forEach(idea => {
+        if (!idea.group_id) { // グループに属していないアイデアのみ表示
+            addIdeaToList(idea);
+        }
+    });
+}
+
+// グループ作成
+async function createGroup() {
+    const title = prompt('グループ名を入力してください:');
+    if (!title) return;
+    
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/brainstorm/sessions/${currentBrainstormSession.session_id}/groups`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${authToken}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                title: title
+            })
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'グループ作成に失敗しました');
+        }
+        
+        const result = await response.json();
+        console.log('✅ グループ作成成功:', result);
+        
+        // WebSocketを待たずに、セッションデータを再取得してUIを更新
+        await refreshBrainstormSession();
+        
+    } catch (error) {
+        console.error('グループ作成エラー:', error);
+        alert(error.message || 'グループ作成に失敗しました');
+    }
+}
+
+// ブレストセッション情報を再取得してUIを更新
+async function refreshBrainstormSession() {
+    if (!currentBrainstormSession) return;
+    
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/brainstorm/sessions/${currentBrainstormSession.session_id}`, {
+            headers: {
+                'Authorization': `Bearer ${authToken}`
+            }
+        });
+        
+        if (response.ok) {
+            const sessionData = await response.json();
+            // UIコンポーネントを個別に更新
+            updateBrainstormPhase(sessionData.state);
+            updateBrainstormStats(sessionData.counters);
+            
+            // グループリストをクリアして再構築
+            const groupsList = document.getElementById('brainstorm-groups-list');
+            groupsList.innerHTML = '<div class="text-center text-gray-500 py-4">グループはまだありません</div>';
+            
+            sessionData.groups.forEach(group => {
+                addGroupToList(group);
+            });
+            
+            // アイデアリストも更新
+            const ideasList = document.getElementById('brainstorm-ideas-list');
+            ideasList.innerHTML = '<div class="text-center text-gray-500 py-4">アイデアはまだありません</div>';
+            
+            sessionData.ideas.forEach(idea => {
+                addIdeaToList(idea);
+            });
+        }
+    } catch (error) {
+        console.error('セッション更新エラー:', error);
+    }
+}
+
+// グループをリストに追加
+function addGroupToList(group) {
+    const groupsList = document.getElementById('brainstorm-groups-list');
+    if (groupsList.querySelector('.text-center')) {
+        groupsList.innerHTML = '';
+    }
+    
+    const groupElement = document.createElement('div');
+    groupElement.className = 'bg-white p-4 rounded-lg shadow-sm border group-container';
+    groupElement.dataset.groupId = group.id;
+    groupElement.innerHTML = `
+        <div class="flex justify-between items-center mb-3">
+            <h5 class="font-medium text-gray-900">${escapeHtml(group.title)}</h5>
+            <div class="flex items-center gap-2">
+                <span class="text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded vote-count">👍 ${group.votes || 0}</span>
+                <button onclick="voteForGroup('${group.id}')" class="text-xs text-blue-600 hover:text-blue-800 vote-btn">投票</button>
+            </div>
+        </div>
+        <div class="space-y-2 min-h-20 drop-zone" data-group-id="${group.id}">
+            <div class="text-xs text-gray-400 text-center py-2 border-dashed border-2 border-gray-200 rounded">
+                アイデアをドラッグしてください
+            </div>
+        </div>
+    `;
+    
+    // ドロップイベント
+    const dropZone = groupElement.querySelector('.drop-zone');
+    dropZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        dropZone.classList.add('bg-purple-50', 'border-purple-300');
+    });
+    
+    dropZone.addEventListener('dragleave', (e) => {
+        dropZone.classList.remove('bg-purple-50', 'border-purple-300');
+    });
+    
+    dropZone.addEventListener('drop', async (e) => {
+        e.preventDefault();
+        dropZone.classList.remove('bg-purple-50', 'border-purple-300');
+        
+        const ideaId = e.dataTransfer.getData('text/plain');
+        const ideaData = JSON.parse(e.dataTransfer.getData('application/json'));
+        
+        await moveIdeaToGroup(ideaId, group.id);
+    });
+    
+    groupsList.appendChild(groupElement);
+}
+
+// アイデアをグループに移動
+async function moveIdeaToGroup(ideaId, groupId) {
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/brainstorm/sessions/${currentBrainstormSession.session_id}/move`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${authToken}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                idea_id: ideaId,
+                group_id: groupId
+            })
+        });
+        
+        if (!response.ok) {
+            throw new Error('アイデア移動に失敗しました');
+        }
+        
+        // UI更新: アイデアを元の場所から削除してグループに追加
+        const ideaElement = document.querySelector(`[data-idea-id="${ideaId}"]`);
+        if (ideaElement) {
+            const groupDropZone = document.querySelector(`[data-group-id="${groupId}"]`);
+            if (groupDropZone) {
+                // プレースホルダーを削除
+                const placeholder = groupDropZone.querySelector('.text-center');
+                if (placeholder) placeholder.remove();
+                
+                // アイデアを移動
+                ideaElement.classList.add('bg-purple-50');
+                groupDropZone.appendChild(ideaElement);
+            }
+        }
+        
+    } catch (error) {
+        console.error('アイデア移動エラー:', error);
+        alert('アイデアの移動に失敗しました');
+    }
+}
+
+// グループ一覧表示
+function renderBrainstormGroups(groups) {
+    const groupsList = document.getElementById('brainstorm-groups-list');
+    groupsList.innerHTML = '';
+    
+    if (groups.length === 0) {
+        groupsList.innerHTML = '<div class="text-center text-gray-500 py-8">グループを作成してアイデアをドラッグしてください</div>';
+        return;
+    }
+    
+    groups.forEach(group => {
+        addGroupToList(group);
+    });
+}
+
+// フェーズ開始
+async function startBrainstormPhase(phase) {
+    if (phase === 'voting') {
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/brainstorm/sessions/${currentBrainstormSession.session_id}/start-voting`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${authToken}`
+                }
+            });
+            
+            if (!response.ok) {
+                throw new Error('投票開始に失敗しました');
+            }
+        } catch (error) {
+            console.error('投票開始エラー:', error);
+            alert('投票の開始に失敗しました');
+        }
+    }
+}
+
+// 投票
+async function voteForIdea(ideaId) {
+    await castVote(ideaId, 'idea');
+}
+
+async function voteForGroup(groupId) {
+    await castVote(groupId, 'group');
+}
+
+async function castVote(targetId, targetType) {
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/brainstorm/sessions/${currentBrainstormSession.session_id}/vote`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${authToken}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                target_id: targetId,
+                target_type: targetType
+            })
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || '投票に失敗しました');
+        }
+        
+        const result = await response.json();
+        document.getElementById('brainstorm-remaining-votes').textContent = `残り投票数: ${result.remaining_votes}票`;
+        
+    } catch (error) {
+        console.error('投票エラー:', error);
+        alert(error.message);
+    }
+}
+
+// セッション終了
+async function endBrainstormSession() {
+    if (!confirm('ブレインストーミングセッションを終了しますか？')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/brainstorm/sessions/${currentBrainstormSession.session_id}/end`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${authToken}`
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error('セッション終了に失敗しました');
+        }
+        
+        const summary = await response.json();
+        showBrainstormResults(summary);
+        
+    } catch (error) {
+        console.error('セッション終了エラー:', error);
+        alert('セッションの終了に失敗しました');
+    }
+}
+
+// 結果表示
+function showBrainstormResults(summary) {
+    const resultsDiv = document.getElementById('brainstorm-results');
+    const summaryDiv = document.getElementById('brainstorm-summary');
+    
+    let html = '';
+    
+    if (summary.type === 'groups') {
+        html += `<p><strong>参加者:</strong> ${summary.participants}人 | <strong>アイデア:</strong> ${summary.total_ideas}件 | <strong>投票:</strong> ${summary.total_votes}票</p>`;
+        html += '<h5 class="font-semibold mt-4 mb-2">上位グループ</h5><ol class="list-decimal list-inside space-y-1">';
+        
+        summary.top_groups.forEach((group, index) => {
+            html += `<li><strong>${escapeHtml(group.title)}</strong> (${group.votes}票)</li>`;
+        });
+        
+        html += '</ol>';
+    } else {
+        html += `<p><strong>参加者:</strong> ${summary.participants}人 | <strong>アイデア:</strong> ${summary.total_ideas}件</p>`;
+        html += '<h5 class="font-semibold mt-4 mb-2">上位アイデア</h5><ol class="list-decimal list-inside space-y-1">';
+        
+        summary.top_items.forEach((idea, index) => {
+            html += `<li>「${escapeHtml(idea.text)}」 (${idea.votes}票)</li>`;
+        });
+        
+        html += '</ol>';
+    }
+    
+    summaryDiv.innerHTML = html;
+    resultsDiv.classList.remove('hidden');
+}
+
+// 結果保存
+async function saveBrainstormSummary() {
+    const title = prompt('保存する結果のタイトル:', 'ブレインストーミング結果');
+    if (!title) return;
+    
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/brainstorm/sessions/${currentBrainstormSession.session_id}/save`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${authToken}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                title: title
+            })
+        });
+        
+        if (!response.ok) {
+            throw new Error('結果保存に失敗しました');
+        }
+        
+        const result = await response.json();
+        alert(result.message || 'ブレインストーミング結果をストリームに保存しました');
+        closeBrainstormModal();
+        await loadAnnouncements(); // ストリーム画面を更新
+        
+    } catch (error) {
+        console.error('結果保存エラー:', error);
+        alert('結果の保存に失敗しました');
+    }
+}
+
+async function deleteBrainstormSession() {
+    if (!currentBrainstormSession?.session_id) return;
+    
+    if (!confirm('このブレストセッションを削除しますか？削除すると全てのデータが失われます。')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/brainstorm/sessions/${currentBrainstormSession.session_id}`, {
+            method: 'DELETE',
+            headers: {
+                'Authorization': `Bearer ${authToken}`,
+            },
+        });
+        
+        if (response.ok) {
+            alert('ブレストセッションを削除しました');
+            closeBrainstormModal();
+        } else {
+            alert('削除に失敗しました');
+        }
+    } catch (error) {
+        console.error('削除エラー:', error);
+        alert('削除に失敗しました');
+    }
+}
+
+// モーダル閉じる
+function closeBrainstormModal() {
+    if (brainstormWebSocket) {
+        brainstormWebSocket.close();
+        brainstormWebSocket = null;
+    }
+    
+    currentBrainstormSession = null;
+    currentAnonymousId = null;
+    
+    document.getElementById('brainstorm-modal').classList.add('hidden');
+}
+
+// 投票数更新関数
+function updateVoteCount(targetId, targetType) {
+    try {
+        if (targetType === 'idea') {
+            const ideaElement = document.querySelector(`[data-idea-id="${targetId}"]`);
+            if (ideaElement) {
+                const voteCount = ideaElement.querySelector('.vote-count');
+                if (voteCount) {
+                    const currentVotes = parseInt(voteCount.textContent.match(/\d+/)[0]) || 0;
+                    voteCount.textContent = `👍 ${currentVotes + 1}`;
+                }
+            }
+        } else if (targetType === 'group') {
+            const groupElement = document.querySelector(`[data-group-id="${targetId}"]`);
+            if (groupElement) {
+                const voteCount = groupElement.querySelector('.vote-count');
+                if (voteCount) {
+                    const currentVotes = parseInt(voteCount.textContent.match(/\d+/)[0]) || 0;
+                    voteCount.textContent = `👍 ${currentVotes + 1}`;
+                }
+            }
+        }
+    } catch (error) {
+        console.error('投票数更新エラー:', error);
+    }
+}
+
+// グローバル関数として公開
+window.startBrainstorming = startBrainstorming;
+window.closeBrainstormModal = closeBrainstormModal;
+window.startBrainstormPhase = startBrainstormPhase;
+window.submitIdea = submitIdea;
+window.createGroup = createGroup;
+window.endBrainstormSession = endBrainstormSession;
+window.saveBrainstormSummary = saveBrainstormSummary;
+window.voteForIdea = voteForIdea;
+window.voteForGroup = voteForGroup;
